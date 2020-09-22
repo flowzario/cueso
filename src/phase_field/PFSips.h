@@ -25,7 +25,7 @@ class PFSips : public CuesoBase {
         double co;        // polymer concentration fields
         double M;
         double mobReSize;
-        double w;
+        //double w;
         double kap;
         double dt;
         double dx,dy,dz;
