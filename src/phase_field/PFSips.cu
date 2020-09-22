@@ -39,6 +39,8 @@ PFSips::PFSips(const GetPot& input_params)
     bz = input_params("PFSips/bz",1);
     numSteps = input_params("Time/nstep",1);
     co = input_params("PFSips/co",0.20);
+    c1 = input_params("PFSips/c1",0.20);
+    r1 = input_params("PFSips/r1",1.0);
     M = input_params("PFSips/M",1.0);
     mobReSize = input_params("PFSips/mobReSize",0.35);
     kap = input_params("PFSips/kap",1.0);
@@ -129,12 +131,31 @@ void PFSips::initSystem()
     // ----------------------------------------
     srand(time(NULL));      // setting the seed  
     double r = 0.0;
+    int xHolder = 0;
+    int zone1 = r1*nx;
+    int zone2 = nx - zone1;
     for(size_t i=0;i<nxyz;i++) {
         r = (double)rand()/RAND_MAX;
         // initialize polymer phase
-        c.push_back(co + 0.1*(r-0.5));
+        //c.push_back(co + 0.1*(r-0.5));
         // initialize nonsolvent phase
-        water.push_back(NS_in_dope);
+        //water.push_back(NS_in_dope);
+        while (xHolder < zone1) 
+        {  
+            r = (double)rand()/RAND_MAX;
+            c.push_back(co + 0.1*(r-0.5));
+            water.push_back(NS_in_dope);
+            xHolder++;
+        }
+        xHolder = 0;
+        while (xHolder < zone2)
+        {
+            r = (double)rand()/RAND_MAX;
+            c.push_back(c1 + 0.1*(r-0.5));
+            water.push_back(NS_in_dope);
+            xHolder++;
+        }
+        xHolder = 0;
     }
 
     // ----------------------------------------

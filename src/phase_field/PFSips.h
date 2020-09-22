@@ -23,6 +23,8 @@ class PFSips : public CuesoBase {
         int numOutputs;
         int outInterval;
         double co;        // polymer concentration fields
+        double c1;        // polymer layer 2 concentration
+        double r1;        // ratio for thickness of c0 and c1
         double M;
         double mobReSize;
         //double w;
