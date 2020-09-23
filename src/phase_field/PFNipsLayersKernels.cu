@@ -238,7 +238,8 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     else if (cc1 >= 1.0) cc1_fh = 0.999;
     else cc1_fh = cc1;
     double n_fh = 1.0 - cc_fh - cc1_fh;
-    double FH = (N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
+    double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
+    if (cc < 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;   
     return FH;
 }
 
@@ -344,7 +345,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,double*df1, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/ double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -357,13 +358,13 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         double cc1 = c1[gid];
         double ww = w[gid];
         double lap_c = df[gid];
-        double lap_c1 = df1[gid];
+        // double lap_c1 = df1[gid];
         // compute interaction parameter
         double chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
         // compute chemical potential
-        //df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A);
+        // df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A);
         df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,N,lap_c,kap,A);
-        df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,N,lap_c1,kap,A);
+        // df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,N,lap_c1,kap,A);
     }
 }
 
@@ -421,8 +422,10 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
         //nonUniformLap[gid] = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         //c[gid] += nonUniformLap[gid]*dt;
         //compute laplacian of chemical potential and update with constant mobility
-        double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        
+        // switch chemical potentials between for updating i and j
+        double lap_c = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        double lap_c1 = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         c[gid] += 1.0*lap_c*dt;
         c1[gid] += 1.0*lap_c1*dt;
     } 

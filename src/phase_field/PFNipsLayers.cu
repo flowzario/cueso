@@ -203,8 +203,8 @@ void PFNipsLayers::initSystem()
     // copy concentration and water array to device
     cudaMemcpy(c_d,&c[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
-    //cudaMemcpy(c1_d,&c1[0],size,cudaMemcpyHostToDevice);
-    //cudaCheckErrors("cudaMemcpy H2D fail");
+    cudaMemcpy(c1_d,&c1[0],size,cudaMemcpyHostToDevice);
+    cudaCheckErrors("cudaMemcpy H2D fail");
     cudaMemcpy(w_d,&water[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
     
@@ -248,11 +248,15 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
         
-        // calculate the chemical potential and store in df_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,df1_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        // calculate the chemical potential for c and store in df_d
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,/*df1_d,*/kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
         
+        // calculate the chemical potential for c1 and store in df1_d
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,/*df1_d,*/kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        cudaDeviceSynchronize();
         // calculate the chemical potential and store in df_d
         //calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         //cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
@@ -311,7 +315,7 @@ void PFNipsLayers::computeInterval(int interval)
     cudaDeviceSynchronize();
     // second polymer concentration
     populateCopyBuffer_NIPS<<<blocks,blockSize>>>(c1_d,cpyBuff_d,nx,ny,nz);
-    cudaMemcpyAsync(&c[0],c_d,size,cudaMemcpyDeviceToHost);
+    cudaMemcpyAsync(&c1[0],c1_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
     // nonsolvent concentration
