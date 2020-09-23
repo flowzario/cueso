@@ -231,11 +231,11 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
 {
     double cc_fh = 0.0;
     double cc1_fh = 0.0;
-    if (cc < 0.0) cc_fh = 0.0001;
-    else if (cc > 1.0) cc_fh = 0.999;
+    if (cc <= 0.0) cc_fh = 0.0001;
+    else if (cc >= 1.0) cc_fh = 0.999;
     else cc_fh = cc;
-    if (cc1 < 0.0) cc1_fh = 0.0001;
-    else if (cc1 > 1.0) cc1_fh = 0.999;
+    if (cc1 <= 0.0) cc1_fh = 0.0001;
+    else if (cc1 >= 1.0) cc1_fh = 0.999;
     else cc1_fh = cc1;
     double n_fh = 1.0 - cc_fh - cc1_fh;
     double FH = (N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
