@@ -23,6 +23,8 @@ class PFNipsLayers : public CuesoBase {
         int numOutputs;
         int outInterval;
         double co;        // polymer concentration fields
+        double co1;
+        double r1;
         double M;
         double mobReSize;
         //double w;
@@ -51,12 +53,15 @@ class PFNipsLayers : public CuesoBase {
         bool bx,by,bz;
         Rand rng;
         vector<double> c;
+        vector<double> c1;
         vector<double> water;
     
         // cuda members
         int size;
         double * c_d;        // concentration array
+        double * c1_d;
         double * df_d;       // chemical potential array
+        double * df1_d;
         double * w_d;        // non-solvent array
         double * muNS_d;     // laplacian array for fickian diffusion
         double * cpyBuff_d; 			// Copy buffer for ansynchronous data transfer

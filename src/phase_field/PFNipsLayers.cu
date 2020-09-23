@@ -39,6 +39,8 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     bz = input_params("PFNipsLayers/bz",1);
     numSteps = input_params("Time/nstep",1);
     co = input_params("PFNipsLayers/co",0.20);
+    co1 = input_params("PFNipsLayers/co1",0.20);
+    r1 = input_params("PFNipsLayers/r1",0.5);
     M = input_params("PFNipsLayers/M",1.0);
     mobReSize = input_params("PFNipsLayers/mobReSize",0.35);
     kap = input_params("PFNipsLayers/kap",1.0);
@@ -106,7 +108,9 @@ PFNipsLayers::~PFNipsLayers()
     // ----------------------------------------
 
     cudaFree(c_d);
+    cudaFree(c1_d);
     cudaFree(df_d);
+    cudaFree(df1_d);
     cudaFree(Mob_d);
     cudaFree(w_d);
     cudaFree(muNS_d);
@@ -129,14 +133,34 @@ void PFNipsLayers::initSystem()
     // ----------------------------------------
     srand(time(NULL));      // setting the seed  
     double r = 0.0;
+    int xHolder = 0;
+    int zone1 = r1*nx;
+    int zone2 = nx - zone1;
     for(size_t i=0;i<nxyz;i++) {
         r = (double)rand()/RAND_MAX;
         // initialize polymer phase
-        c.push_back(co + 0.1*(r-0.5));
+        //c.push_back(co + 0.1*(r-0.5));
         // initialize nonsolvent phase
-        water.push_back(NS_in_dope);
+        //water.push_back(NS_in_dope);
+        while (xHolder < zone1) 
+        {  
+            r = (double)rand()/RAND_MAX;
+            c.push_back(co + 0.1*(r-0.5));
+            c1.push_back(0.0);
+            water.push_back(NS_in_dope);
+            xHolder++;
+        }
+        xHolder = 0;
+        while (xHolder < zone2)
+        {
+            r = (double)rand()/RAND_MAX;
+            c.push_back(0.0);
+            c1.push_back(co1 + 0.1*(r-0.5));
+            water.push_back(NS_in_dope);
+            xHolder++;
+        }
+        xHolder = 0;
     }
-
     // ----------------------------------------
     // Allocate memory on device and copy data
     // and copy data from host to device
@@ -149,6 +173,13 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
     cudaMalloc((void**) &df_d,size);
+    cudaCheckErrors("cudaMalloc fail");
+    // allocate water concentration
+    // allocate polymer species
+    cudaMalloc((void**) &c1_d,size);
+    cudaCheckErrors("cudaMalloc fail");
+    // allocate space for laplacian
+    cudaMalloc((void**) &df1_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate water concentration
     cudaMalloc((void**) &w_d,size);
