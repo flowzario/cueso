@@ -215,7 +215,7 @@ __device__ double chiDiffuse_NIPS(double locWater, double chiPS, double chiPN)
 	*
 	***********************************************************/
 
-__device__ double freeEnergyBiFH_NIPS(double cc, double chi, double N, double lap_c, double kap, double A)
+/*__device__ double freeEnergyBiFH_NIPS(double cc, double chi, double N, double lap_c, double kap, double A)
 {
    double c_fh = 0.0;
    if (cc < 0.0) c_fh = 0.0001;
@@ -224,7 +224,7 @@ __device__ double freeEnergyBiFH_NIPS(double cc, double chi, double N, double la
    double FH = (log(c_fh) + 1.0)/N - log(1.0-c_fh) - 1.0 + chi*(1.0-2.0*c_fh) - kap*lap_c;
    if (cc <= 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;   
    return FH;
-}
+}*/
 
 
 __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double N, double lap_c, double kap, double A)
@@ -246,7 +246,7 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
   * Compute second derivative of FH with respect to phi
   ***********************************************************/
   
-__device__ double d2dc2_FH_NIPS(double cc, double N)
+/*__device__ double d2dc2_FH_NIPS(double cc, double N)
 {
    double c2_fh = 0.0;
    if (cc < 0.0) c2_fh = 0.0001;
@@ -254,13 +254,13 @@ __device__ double d2dc2_FH_NIPS(double cc, double N)
    else c2_fh = cc;
    double FH_2 = 0.5 * (1.0/(N*c2_fh) + 1.0/(1.0-c2_fh));
    return FH_2;	
-}
+}*/
 
 /*************************************************************
   * Compute diffusion coefficient via phillies eq.
   ***********************************************************/
 
-__device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu, 
+/*__device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu, 
 								    double D0, double Mweight, double Mvolume)
 {
 	double cc_d = 1.0;
@@ -270,7 +270,7 @@ __device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu,
 	else cc_d = cc * rho; // convert phi to g/L
 	double Dp = D0 * exp(-gamma * pow(cc_d,nu));
 	return Dp;
-}
+}*/
 
 
 // -------------------------------------------------------
@@ -332,7 +332,6 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
     {
         int gid = nx*ny*idz + nx*idy + idx;
         df[gid] = laplacianUpdateBoundaries_NIPS(c,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //df1[gid]= laplacianUpdateBoundaries_NIPS()
     }
 }
 
@@ -374,7 +373,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
+/*__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
 											 double phiCutoff, double N,
         									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
 {
@@ -398,9 +397,9 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mo
         //}
         // resize mobility to be similar to experiments
         //M *= mobReSize;
-        Mob[gid] = M;		  
+       // Mob[gid] = M;		  
     }
-}
+}*/
 
 /************************************************************************************
   * Computes the non-uniform mobility and chemical potential laplacian, multiplies 
@@ -431,7 +430,7 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
 
 
 
-__global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mob, double Dw, double water_CB, double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz)
+/*__global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mob, double Dw, double water_CB, double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -458,7 +457,7 @@ __global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mo
         if (Mob[gid] < 0.0) Mob[gid] = 0.0;
     }
     
-}
+}*/
 
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
@@ -495,7 +494,10 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
     if (idx<nx && idy<ny && idz<nz)
     {
         int gid = nx*ny*idz + nx*idy + idx;
-        w[gid] += nonUniformLap[gid]*dt;
+        // w[gid] += nonUniformLap[gid]*dt;
+        // check first layer...
+        if (idx == 0) w[gid] = 1.0;
+        w[gid] += 10.0*df[gid]*dt;
     }
 }
 

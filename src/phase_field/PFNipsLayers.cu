@@ -270,7 +270,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // calculate mu for Nonsolvent diffusion
-        calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
+        /*calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
         cudaDeviceSynchronize();
         
@@ -282,6 +282,11 @@ void PFNipsLayers::computeInterval(int interval)
         // calculate nonuniform laplacian for diffusion
         calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
+        cudaDeviceSynchronize();*/
+        
+        // calculate laplacian for water concentration
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
+        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
         
         // euler update water diffusing
