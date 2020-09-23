@@ -226,6 +226,22 @@ __device__ double freeEnergyBiFH_NIPS(double cc, double chi, double N, double la
    return FH;
 }
 
+
+__device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double N, double lap_c, double kap, double A)
+{
+    double cc_fh = 0.0;
+    double cc1_fh = 0.0;
+    if (cc < 0.0) cc_fh = 0.0001;
+    else if (cc > 1.0) cc_fh = 0.999;
+    else cc_fh = cc;
+    if (cc1 < 0.0) cc1_fh = 0.0001;
+    else if (cc1 > 1.0) cc1_fh = 0.999;
+    else cc1_fh = cc1;
+    double n_fh = 1.0 - cc_fh - cc1_fh;
+    double FH = (N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
+    return FH;
+}
+
 /*************************************************************
   * Compute second derivative of FH with respect to phi
   ***********************************************************/
@@ -316,6 +332,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
     {
         int gid = nx*ny*idz + nx*idy + idx;
         df[gid] = laplacianUpdateBoundaries_NIPS(c,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //df1[gid]= laplacianUpdateBoundaries_NIPS()
     }
 }
 
@@ -328,7 +345,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* w,double* df, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,double*df1, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -338,12 +355,16 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* w,double* df, double k
     {
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
+        double cc1 = c1[gid];
         double ww = w[gid];
         double lap_c = df[gid];
+        double lap_c1 = df1[gid];
         // compute interaction parameter
         double chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
         // compute chemical potential
-        df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A); 
+        //df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A);
+        df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,N,lap_c,kap,A);
+        df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,N,lap_c1,kap,A);
     }
 }
 
@@ -365,18 +386,18 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mo
         M = 1.0;
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
-        double FH2 = d2dc2_FH_NIPS(cc,N);
-        double D_phil = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
-        double Dtemp = D0*Tcast/273.15;
-        M = Dtemp*D_phil/FH2;
-        if (M > 1.0) M = 1.0;     // making mobility max = 1
-        else if (M < 0.0) M = 0.001; // mobility min = 0.001
+        //double FH2 = d2dc2_FH_NIPS(cc,N);
+        //double D_phil = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
+        //double Dtemp = D0*Tcast/273.15;
+        //M = Dtemp*D_phil/FH2;
+        //if (M > 1.0) M = 1.0;     // making mobility max = 1
+        //else if (M < 0.0) M = 0.001; // mobility min = 0.001
         // Using phiCutoff as vitrification
-        if (cc > phiCutoff) { 
-            M *= 1e-6;
-        }
+        //if (cc > phiCutoff) { 
+        //    M *= 1e-6;
+        //}
         // resize mobility to be similar to experiments
-        M *= mobReSize;
+        //M *= mobReSize;
         Mob[gid] = M;		  
     }
 }
@@ -387,7 +408,7 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mo
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* df,double* Mob,double* nonUniformLap, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double* df, double* df1, double* Mob,double* nonUniformLap, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -398,8 +419,13 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* df,double* 
         int gid = nx*ny*idz + nx*idy + idx;
         // compute chemical potential laplacain with non-uniform mobility
         // and user defined boundaries (no-flux or PBCs)
-        nonUniformLap[gid] = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        c[gid] += nonUniformLap[gid]*dt;
+        //nonUniformLap[gid] = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //c[gid] += nonUniformLap[gid]*dt;
+        //compute laplacian of chemical potential and update with constant mobility
+        double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        c[gid] += 1.0*lap_c*dt;
+        c1[gid] += 1.0*lap_c1*dt;
     } 
 }
 

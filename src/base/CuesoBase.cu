@@ -8,6 +8,7 @@
 // Phase-Field classes:
 # include "../phase_field/PFApp.h"
 # include "../phase_field/PFSips.h"
+# include "../phase_field/PFNipsLayers.h"
 
 
 // -------------------------------------------------------------------------
@@ -39,6 +40,12 @@ CuesoBase* CuesoBase::CuesoObjectFactory(string specifier)
    {
         CuesoBase* app = new PFSips(InParams);
         app->appName = "PFSips";
+        return app;
+   }
+ 	if (specifier == "PFNipsLayers/")
+   {
+        CuesoBase* app = new PFNipsLayers(InParams);
+        app->appName = "PFNipsLayers";
         return app;
    }
 

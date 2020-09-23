@@ -27,7 +27,6 @@ class PFNipsLayers : public CuesoBase {
         double r1;
         double M;
         double mobReSize;
-        //double w;
         double kap;
         double dt;
         double dx,dy,dz;

@@ -140,6 +140,7 @@ void PFNipsLayers::initSystem()
         r = (double)rand()/RAND_MAX;
         // initialize polymer phase
         //c.push_back(co + 0.1*(r-0.5));
+        //c1.push_back(0.0);
         // initialize nonsolvent phase
         //water.push_back(NS_in_dope);
         while (xHolder < zone1) 
@@ -174,7 +175,6 @@ void PFNipsLayers::initSystem()
     // allocate space for laplacian
     cudaMalloc((void**) &df_d,size);
     cudaCheckErrors("cudaMalloc fail");
-    // allocate water concentration
     // allocate polymer species
     cudaMalloc((void**) &c1_d,size);
     cudaCheckErrors("cudaMalloc fail");
@@ -203,6 +203,8 @@ void PFNipsLayers::initSystem()
     // copy concentration and water array to device
     cudaMemcpy(c_d,&c[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
+    //cudaMemcpy(c1_d,&c1[0],size,cudaMemcpyHostToDevice);
+    //cudaCheckErrors("cudaMemcpy H2D fail");
     cudaMemcpy(w_d,&water[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
     
@@ -240,20 +242,30 @@ void PFNipsLayers::computeInterval(int interval)
         calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
+
+        // calculate the laplacian of c1_d and store in df1_d
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
+        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
+        cudaDeviceSynchronize();
         
         // calculate the chemical potential and store in df_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,df1_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
         
+        // calculate the chemical potential and store in df_d
+        //calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        //cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        //cudaDeviceSynchronize();
+        
         // calculate mobility and store it in Mob_d
-        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
+        /*calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
         cudaCheckAsyncErrors("calculateMobility kernel fail");
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize();*/
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -280,7 +292,7 @@ void PFNipsLayers::computeInterval(int interval)
         // add thermal fluctuations of polymer concentration
         addNoise_NIPS<<<blocks,blockSize>>>(c_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
         cudaCheckAsyncErrors("addNoise kernel fail");
-        cudaDeviceSynchronize(); 
+        cudaDeviceSynchronize();
     }
 
     // ----------------------------------------
@@ -289,6 +301,11 @@ void PFNipsLayers::computeInterval(int interval)
     
     // polymer concentration
     populateCopyBuffer_NIPS<<<blocks,blockSize>>>(c_d,cpyBuff_d,nx,ny,nz);
+    cudaMemcpyAsync(&c[0],c_d,size,cudaMemcpyDeviceToHost);
+    cudaCheckErrors("cudaMemcpyAsync D2H fail");
+    cudaDeviceSynchronize();
+    // second polymer concentration
+    populateCopyBuffer_NIPS<<<blocks,blockSize>>>(c1_d,cpyBuff_d,nx,ny,nz);
     cudaMemcpyAsync(&c[0],c_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
@@ -314,8 +331,10 @@ void PFNipsLayers::writeOutput(int step)
 
     ofstream outfile;
     ofstream outfile2;
+    ofstream outfile3;
     stringstream filenamecombine;
     stringstream filenamecombine2;
+    stringstream filenamecombine3;
     
     filenamecombine << "vtkoutput/c_" << step << ".vtk";
     string filename = filenamecombine.str();
@@ -360,6 +379,50 @@ void PFNipsLayers::writeOutput(int step)
     // -----------------------------------
 
     outfile.close();
+    
+    // vtkoutput for second polymer
+    filenamecombine3 << "vtkoutput/c1_" << step << ".vtk";
+    string filename3 = filenamecombine3.str();
+    outfile3.open(filename3.c_str(), std::ios::out);
+
+    // -----------------------------------
+    //	Write the 'vtk' file header:
+    // -----------------------------------
+
+    outfile3 << "# vtk DataFile Version 3.1" << endl;
+    outfile3 << "VTK file containing grid data" << endl;
+    outfile3 << "ASCII" << endl;
+    outfile3 << " " << endl;
+    outfile3 << "DATASET STRUCTURED_POINTS" << endl;
+    outfile3 << "DIMENSIONS" << d << nx << d << ny << d << nz << endl;
+    outfile3 << "ORIGIN " << d << 0 << d << 0 << d << 0 << endl;
+    outfile3 << "SPACING" << d << 1.0 << d << 1.0 << d << 1.0 << endl;
+    outfile3 << " " << endl;
+    outfile3 << "POINT_DATA " << nxyz << endl;
+    outfile3 << "SCALARS c float" << endl;
+    outfile3 << "LOOKUP_TABLE default" << endl;
+
+    // -----------------------------------
+    //	Write the data:
+    // NOTE: x-data increases fastest,
+    //       then y-data, then z-data
+    // -----------------------------------
+
+    for(size_t k=0;k<nz;k++)
+        for(size_t j=0;j<ny;j++)
+            for(size_t i=0;i<nx;i++)
+            {
+                int id = nx*ny*k + nx*j + i;
+                double point = c1[id];
+                //if (point < 1e-10) point = 0.0; // making really small numbers == 0 
+                outfile3 << point << endl;
+            }
+
+    // -----------------------------------
+    //	Close the file:
+    // -----------------------------------
+
+    outfile3.close();
     // vtkoutput for water
     // -----------------------------------
     // Define the file location and name:
