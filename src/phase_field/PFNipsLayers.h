@@ -62,7 +62,7 @@ class PFNipsLayers : public CuesoBase {
         double * df_d;       // chemical potential array
         double * df1_d;
         double * w_d;        // non-solvent array
-        double * muNS_d;     // laplacian array for fickian diffusion
+        // double * muNS_d;     // laplacian array for fickian diffusion
         double * cpyBuff_d; 			// Copy buffer for ansynchronous data transfer
         double * Mob_d;     			// mobility
         double * nonUniformLap_d;	    // laplacian of mobility and df

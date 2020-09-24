@@ -113,7 +113,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(df1_d);
     cudaFree(Mob_d);
     cudaFree(w_d);
-    cudaFree(muNS_d);
+    //cudaFree(muNS_d);
     cudaFree(nonUniformLap_d);
     cudaFree(cpyBuff_d);
     cudaFree(devState);
@@ -185,8 +185,8 @@ void PFNipsLayers::initSystem()
     cudaMalloc((void**) &w_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
-    cudaMalloc((void**) &muNS_d,size);
-    cudaCheckErrors("cudaMalloc fail");
+    //cudaMalloc((void**) &muNS_d,size);
+    //cudaCheckErrors("cudaMalloc fail");
     // copy buffer
     cudaMalloc((void**) &cpyBuff_d,size);
     cudaCheckErrors("cudaMalloc fail");
