@@ -239,7 +239,8 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     else cc1_fh = cc1;
     double n_fh = 1.0 - cc_fh - cc1_fh;
     double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
-    if (cc < 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;   
+    if (cc < 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;  
+    if (cc > 1.0) FH = 1.5*A*sqrt(cc - 1.0) - kap*lap_c;
     return FH;
 }
 
@@ -424,8 +425,8 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
         //compute laplacian of chemical potential and update with constant mobility
         
         // switch chemical potentials between for updating i and j
-        double lap_c = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        double lap_c1 = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         c[gid] += 1.0*lap_c*dt;
         c1[gid] += 1.0*lap_c1*dt;
     } 
