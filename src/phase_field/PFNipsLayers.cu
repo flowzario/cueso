@@ -303,21 +303,24 @@ void PFNipsLayers::computeInterval(int interval)
         // calculate mu for Nonsolvent diffusion
         /*calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize();*/
         
         // calculate laplacian for diffusing water
-        calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
+        /*calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors('calculateLap water kernel fail');    
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize();*/
         
         
         // calculate laplacian for water concentration
         calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
+        cudaCheckAsyncErrors("calculateLap water laplacian kernel fail");
         cudaDeviceSynchronize();
         
+        /*calculate_water_diffusion<<<blocks,blockSize>>>(w_d,c_d,c1_d,Mob_d,Dw,Dw1,water_CB,nx,ny,nz);
+        cudaCheckAsyncErrors("calculateLap water diffusion kernel fail");
+        cudaDeviceSynchronize();*/
         // calculate nonuniform laplacian for diffusion
-        calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
+        /*calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
         cudaDeviceSynchronize();*/
         
@@ -325,12 +328,12 @@ void PFNipsLayers::computeInterval(int interval)
         // calculate laplacian for water concentration
         /*calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize();*/
         
         // euler update water diffusing
         update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("updateWater kernel fail");
-        cudaDeviceSynchronize();*/
+        cudaDeviceSynchronize();
         
         // ----------------------------
         // add thermal fluctuations
@@ -344,8 +347,7 @@ void PFNipsLayers::computeInterval(int interval)
         // add thermal fluctuations of polymer concentration c1
         addNoise_NIPS<<<blocks,blockSize>>>(c1_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
         cudaCheckAsyncErrors("addNoise kernel fail");
-        cudaDeviceSynchronize();
-        
+        cudaDeviceSynchronize(); 
         
     }
 

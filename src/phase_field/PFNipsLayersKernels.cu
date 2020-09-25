@@ -382,7 +382,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
+/*__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
 											 double phiCutoff, double N,
         									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
 {
@@ -408,7 +408,7 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mo
         //M *= mobReSize;
        // Mob[gid] = M;		  
     }
-}
+}*/
 
 /************************************************************************************
   * Computes the non-uniform mobility and chemical potential laplacian, multiplies 
@@ -517,7 +517,9 @@ __global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
         double cc1 = c1[gid];
-        double D = Dw*(cc) + Dw1*(cc1);
+        // TODO
+        double D = 10 - cc*2 - cc1*8;
+        if (D < 0) D = 1;
         Mob[gid] = D;
     }
 }
@@ -534,8 +536,9 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* n
         int gid = nx*ny*idz + nx*idy + idx;
         
         // removing nonUniformLap memory
-        // nonUniformLap_w = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        // w[gid] += nonUniformLap_w*dt;
+        //double nonUniformLap_w = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //if (idx == 0) w[gid] = 1.0;
+        //else w[gid] += nonUniformLap_w*dt;
         
         // with nonUniformLap memory
         // w[gid] += nonUniformLap[gid]*dt;
