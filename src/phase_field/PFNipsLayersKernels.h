@@ -24,7 +24,8 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob,double M,double mob
 double phiCutoff, double N, double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast);
 
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1,double* df,/*double* df1,*/ double* Mob,double* nonUniformLap, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+// undefined referecne!!!!!!!!!!!
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1,double* df,/*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 // kernel for evolving water field using Fick's 2nd law...
 
@@ -32,9 +33,9 @@ __global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mo
 
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
-__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+/*__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);*/
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, double* nonUniformLap, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/ double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 __global__ void init_cuRAND_NIPS(unsigned long seed, curandState* state,int nx, int ny, int nz);
 

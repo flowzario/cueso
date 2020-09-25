@@ -114,7 +114,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(Mob_d);
     cudaFree(w_d);
     //cudaFree(muNS_d);
-    cudaFree(nonUniformLap_d);
+    //cudaFree(nonUniformLap_d);
     cudaFree(cpyBuff_d);
     cudaFree(devState);
 }
@@ -195,8 +195,8 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMalloc fail");
     // allocate nonuniform laplacian for mobility 
     // and water diffusion coefficient
-    cudaMalloc((void**) &nonUniformLap_d,size);
-    cudaCheckErrors("cudaMalloc fail");
+    //cudaMalloc((void**) &nonUniformLap_d,size);
+    //cudaCheckErrors("cudaMalloc fail");
     // allocate memory for cuRAND state
     cudaMalloc((void**) &devState,nxyz*sizeof(curandState));
     cudaCheckErrors("cudaMalloc fail");
@@ -259,7 +259,7 @@ void PFNipsLayers::computeInterval(int interval)
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/ dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -279,7 +279,7 @@ void PFNipsLayers::computeInterval(int interval)
         
         // calculate the laplacian of the chemical potential, then update c1_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,/*nonUniformLap_d,*/ dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -308,7 +308,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // euler update water diffusing
-        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,nonUniformLap_d,dt,nx,ny,nz,dx,bx,by,bz);
+        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,/*nonUniformLap_d,*/dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("updateWater kernel fail");
         cudaDeviceSynchronize();
         
