@@ -42,6 +42,7 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     co1 = input_params("PFNipsLayers/co1",0.20);
     r1 = input_params("PFNipsLayers/r1",0.5);
     M = input_params("PFNipsLayers/M",1.0);
+    M1 = input_params("PFNipsLayers/M",1.0);
     mobReSize = input_params("PFNipsLayers/mobReSize",0.35);
     kap = input_params("PFNipsLayers/kap",1.0);
     water_CB = input_params("PFNipsLayers/water_CB",1.0);
@@ -56,7 +57,9 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     Tcast = input_params("PFNipsLayers/Tcast",298.0);
     noiseStr = input_params("PFNipsLayers/noiseStr",0.1);
     D0 = input_params("PFNipsLayers/D0",1.0);
-    Dw = input_params("PFNipsLayers/Dw",1.0);
+    D01 = input_params("PFNipsLayers/D0",0.5);
+    Dw = input_params("PFNipsLayers/Dw",10.0);
+    Dw1 = input_params("PFNipsLayers/Dw",5.0);
     nu = input_params("PFNipsLayers/nu",1.0);
     nuDw = input_params("PFNipsLayers/nuDw",1.0);
     gamma = input_params("PFNipsLayers/gamma",1.0);
@@ -259,7 +262,7 @@ void PFNipsLayers::computeInterval(int interval)
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/ dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -277,9 +280,14 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
         
+        // calculate mobility and store it in Mob_d
+        /*calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D01,Mweight,Mvolume,Tcast);
+        cudaCheckAsyncErrors("calculateMobility kernel fail");
+        cudaDeviceSynchronize();*/
+        
         // calculate the laplacian of the chemical potential, then update c1_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,/*nonUniformLap_d,*/ dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,/*nonUniformLap_d,*/M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -295,6 +303,12 @@ void PFNipsLayers::computeInterval(int interval)
         // calculate laplacian for diffusing water
         calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors('calculateLap water kernel fail');    
+        cudaDeviceSynchronize();
+        
+        
+        // calculate laplacian for water concentration
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
+        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
         
         // calculate nonuniform laplacian for diffusion

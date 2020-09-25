@@ -382,7 +382,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-/*__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
+__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
 											 double phiCutoff, double N,
         									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
 {
@@ -408,7 +408,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         //M *= mobReSize;
        // Mob[gid] = M;		  
     }
-}*/
+}
 
 /************************************************************************************
   * Computes the non-uniform mobility and chemical potential laplacian, multiplies 
@@ -416,7 +416,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double* df, /*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double* df, /*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double M, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -437,9 +437,11 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
+        double cc = c[gid];
+        if (cc > 0.75) M = 0;
         double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         // double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ); // commented out to save memory
-        c[gid] += 1.0*lap_c*dt;
+        c[gid] += M*lap_c*dt;
         // c1[gid] += 1.0*lap_c1*dt; // commented out to save memory
     } 
 }
@@ -475,6 +477,8 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
     
 }*/
 
+
+
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
@@ -499,6 +503,22 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
         nonUniformLap[gid] = laplacianNonUniformMob_NIPS(muNS,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
     }
 }*/
+
+__global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob,double Dw,double Dw1,double water_CB,int nx, int ny, int nz)
+{
+    // get unique thread id
+    int idx = blockIdx.x*blockDim.x + threadIdx.x;
+    int idy = blockIdx.y*blockDim.y + threadIdx.y;
+    int idz = blockIdx.z*blockDim.z + threadIdx.z;
+    if (idx<nx && idy<ny && idz<nz)
+    {
+        int gid = nx*ny*idz + nx*idy + idx;
+        double cc = c[gid];
+        double cc1 = c1[gid];
+        double D = Dw*(cc) + Dw1*(cc1);
+        Mob[gid] = D;
+    }
+}
 
 __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/ double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
