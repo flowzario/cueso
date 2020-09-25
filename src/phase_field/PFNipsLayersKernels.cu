@@ -231,6 +231,7 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
 {
     double cc_fh = 0.0;
     double cc1_fh = 0.0;
+    double chi_pp = 0.01;
     if (cc <= 0.0) cc_fh = 0.0001;
     else if (cc >= 1.0) cc_fh = 0.999;
     else cc_fh = cc;
@@ -238,7 +239,13 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     else if (cc1 >= 1.0) cc1_fh = 0.999;
     else cc1_fh = cc1;
     double n_fh = 1.0 - cc_fh - cc1_fh;
-    double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c;
+    // double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c; // this assumes chi = chi_12 = chi_13 = chi_23
+    // above equation not right...
+    // 1st derivative from FH from Tree et. al 2019
+    double FH = ((chi_pp*N*cc_fh) + (chi*N*n_fh) + 2*log(cc1_fh) + 2)/(2*N);
+    // subtract kap*lap_c for CH
+    FH -= kap*lap_c;
+    // if our values go over 1 or less than 0, push back toward [0,1]
     if (cc < 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;  
     if (cc > 1.0) FH = 1.5*A*sqrt(cc - 1.0) - kap*lap_c;
     return FH;
@@ -551,7 +558,7 @@ __global__ void addNoise_NIPS(double *c,int nx, int ny, int nz, double dt, int c
         double noiseScale = 1.0;
         // add random fluctuations with euler update
         if (cc > phiCutoff) noise = 0.5; // no fluctuations for phi < 0
-        else if (cc < 0.0) noise = 0.5;  // no fluctuations for phi > phiCutoff
+        else if (cc <= 0.0) noise = 0.5;  // no fluctuations for phi > phiCutoff
         c[gid] += 0.1*(noise-0.5)*dt*noiseScale;
     }
 }
