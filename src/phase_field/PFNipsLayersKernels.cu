@@ -409,7 +409,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double* df, double* df1, double* Mob,double* nonUniformLap, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double* df, /*double* df1,*/ double* Mob,double* nonUniformLap, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -424,11 +424,11 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* c1, double
         //c[gid] += nonUniformLap[gid]*dt;
         //compute laplacian of chemical potential and update with constant mobility
         
-        // switch chemical potentials between for updating i and j
+        // compute laplacian and do euler update
         double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        // double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         c[gid] += 1.0*lap_c*dt;
-        c1[gid] += 1.0*lap_c1*dt;
+        // c1[gid] += 1.0*lap_c1*dt;
     } 
 }
 

@@ -110,7 +110,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(c_d);
     cudaFree(c1_d);
     cudaFree(df_d);
-    cudaFree(df1_d);
+    //cudaFree(df1_d);
     cudaFree(Mob_d);
     cudaFree(w_d);
     //cudaFree(muNS_d);
@@ -169,18 +169,18 @@ void PFNipsLayers::initSystem()
 
     // allocate memory on device
     size = nxyz*sizeof(double);
-    // allocate polymer species
+    // allocate polymer species (top layer)
     cudaMalloc((void**) &c_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
     cudaMalloc((void**) &df_d,size);
     cudaCheckErrors("cudaMalloc fail");
-    // allocate polymer species
+    // allocate polymer species (bottom layer)
     cudaMalloc((void**) &c1_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
-    cudaMalloc((void**) &df1_d,size);
-    cudaCheckErrors("cudaMalloc fail");
+    //cudaMalloc((void**) &df1_d,size);
+    //cudaCheckErrors("cudaMalloc fail");
     // allocate water concentration
     cudaMalloc((void**) &w_d,size);
     cudaCheckErrors("cudaMalloc fail");
@@ -238,29 +238,19 @@ void PFNipsLayers::computeInterval(int interval)
 
     for(size_t i=0;i<outInterval;i++)
     {
+        // ------------------------
+        // compute CH for c
+        // ------------------------
+        
         // calculate the laplacian of c_d and store in df_d
         calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
 
-        // calculate the laplacian of c1_d and store in df1_d
-        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
-        cudaDeviceSynchronize();
-        
         // calculate the chemical potential for c and store in df_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,/*df1_d,*/kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
-        
-        // calculate the chemical potential for c1 and store in df1_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,/*df1_d,*/kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
-        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
-        cudaDeviceSynchronize();
-        // calculate the chemical potential and store in df_d
-        //calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
-        //cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
-        //cudaDeviceSynchronize();
         
         // calculate mobility and store it in Mob_d
         /*calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
@@ -269,9 +259,33 @@ void PFNipsLayers::computeInterval(int interval)
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
+        
+        // -----------------------
+        // compute CH for c1
+        // -----------------------
+        
+        // calculate the laplacian of c1_d and store in df_d
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df_d,nx,ny,nz,dx,bx,by,bz); 
+        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
+        cudaDeviceSynchronize();
+        
+        // calculate the chemical potential for c1 and store in df1_d
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        cudaDeviceSynchronize();
+        
+        // calculate the laplacian of the chemical potential, then update c1_d
+        // using an Euler update
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,nonUniformLap_d, dt,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
+        cudaDeviceSynchronize();
+        
+        // ---------------------------
+        // compute water diffusion
+        // ---------------------------
         
         // calculate mu for Nonsolvent diffusion
         /*calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
@@ -298,10 +312,21 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("updateWater kernel fail");
         cudaDeviceSynchronize();
         
-        // add thermal fluctuations of polymer concentration
+        // ----------------------------
+        // add thermal fluctuations
+        // ----------------------------
+        
+        // add thermal fluctuations of polymer concentration c
         addNoise_NIPS<<<blocks,blockSize>>>(c_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
         cudaCheckAsyncErrors("addNoise kernel fail");
         cudaDeviceSynchronize();
+        
+        // add thermal fluctuations of polymer concentration c1
+        addNoise_NIPS<<<blocks,blockSize>>>(c1_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
+        cudaCheckAsyncErrors("addNoise kernel fail");
+        cudaDeviceSynchronize();
+        
+        
     }
 
     // ----------------------------------------
@@ -345,7 +370,7 @@ void PFNipsLayers::writeOutput(int step)
     stringstream filenamecombine2;
     stringstream filenamecombine3;
     
-    filenamecombine << "vtkoutput/c_" << step << ".vtk";
+    filenamecombine << "vtkoutput/c_t_" << step << ".vtk";
     string filename = filenamecombine.str();
     outfile.open(filename.c_str(), std::ios::out);
 
@@ -390,7 +415,7 @@ void PFNipsLayers::writeOutput(int step)
     outfile.close();
     
     // vtkoutput for second polymer
-    filenamecombine3 << "vtkoutput/c1_" << step << ".vtk";
+    filenamecombine3 << "vtkoutput/c_b_" << step << ".vtk";
     string filename3 = filenamecombine3.str();
     outfile3.open(filename3.c_str(), std::ios::out);
 
