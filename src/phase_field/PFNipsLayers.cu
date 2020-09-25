@@ -42,7 +42,7 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     co1 = input_params("PFNipsLayers/co1",0.20);
     r1 = input_params("PFNipsLayers/r1",0.5);
     M = input_params("PFNipsLayers/M",1.0);
-    M1 = input_params("PFNipsLayers/M",1.0);
+    M1 = input_params("PFNipsLayers/M1",1.0);
     mobReSize = input_params("PFNipsLayers/mobReSize",0.35);
     kap = input_params("PFNipsLayers/kap",1.0);
     water_CB = input_params("PFNipsLayers/water_CB",1.0);
@@ -113,7 +113,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(c_d);
     cudaFree(c1_d);
     cudaFree(df_d);
-    //cudaFree(df1_d);
+    cudaFree(df1_d);
     cudaFree(Mob_d);
     cudaFree(w_d);
     //cudaFree(muNS_d);
@@ -182,8 +182,8 @@ void PFNipsLayers::initSystem()
     cudaMalloc((void**) &c1_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
-    //cudaMalloc((void**) &df1_d,size);
-    //cudaCheckErrors("cudaMalloc fail");
+    cudaMalloc((void**) &df1_d,size);
+    cudaCheckErrors("cudaMalloc fail");
     // allocate water concentration
     cudaMalloc((void**) &w_d,size);
     cudaCheckErrors("cudaMalloc fail");
@@ -242,7 +242,7 @@ void PFNipsLayers::computeInterval(int interval)
     for(size_t i=0;i<outInterval;i++)
     {
         // ------------------------
-        // compute CH for c
+        // compute CH for c and c1
         // ------------------------
         
         // calculate the laplacian of c_d and store in df_d
@@ -250,8 +250,18 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
 
+        // calculate the laplacian of c1_d and store in df_d
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
+        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
+        cudaDeviceSynchronize();
+        
         // calculate the chemical potential for c and store in df_d
         calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        cudaDeviceSynchronize();
+        
+        // calculate the chemical potential for c1 and store in df1_d
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
         
@@ -262,23 +272,18 @@ void PFNipsLayers::computeInterval(int interval)
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
-        // -----------------------
-        // compute CH for c1
-        // -----------------------
-        
-        // calculate the laplacian of c1_d and store in df_d
-        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
-        cudaDeviceSynchronize();
+        // ------------------------------------------------
+        // compute CH for c1.......is this needed??????
+        // ------------------------------------------------
         
         // calculate the chemical potential for c1 and store in df1_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
-        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
-        cudaDeviceSynchronize();
+        // calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        // cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        // cudaDeviceSynchronize();
         
         // calculate mobility and store it in Mob_d
         /*calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D01,Mweight,Mvolume,Tcast);
@@ -287,9 +292,9 @@ void PFNipsLayers::computeInterval(int interval)
         
         // calculate the laplacian of the chemical potential, then update c1_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,Mob_d,/*nonUniformLap_d,*/M1,dt,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
-        cudaDeviceSynchronize();
+        // lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,df_d,Mob_d,/*nonUniformLap_d,*/M1,dt,nx,ny,nz,dx,bx,by,bz);
+        // cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
+        // cudaDeviceSynchronize();
         
         // ---------------------------
         // compute water diffusion
@@ -316,15 +321,16 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
         cudaDeviceSynchronize();*/
         
+        // comment out water separation ...
         // calculate laplacian for water concentration
-        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
+        /*calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
         
         // euler update water diffusing
-        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,/*nonUniformLap_d,*/dt,nx,ny,nz,dx,bx,by,bz);
+        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("updateWater kernel fail");
-        cudaDeviceSynchronize();
+        cudaDeviceSynchronize();*/
         
         // ----------------------------
         // add thermal fluctuations
