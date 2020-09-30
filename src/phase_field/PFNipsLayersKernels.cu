@@ -227,11 +227,10 @@ __device__ double chiDiffuse_NIPS(double locWater, double chiPS, double chiPN)
 }*/
 
 
-__device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double N, double lap_c, double kap, double A)
+__device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double chiPP, double N, double lap_c, double kap, double A)
 {
     double cc_fh = 0.0;
     double cc1_fh = 0.0;
-    double chi_pp = 0.01;
     if (cc <= 0.0) cc_fh = 0.0001;
     else if (cc >= 1.0) cc_fh = 0.999;
     else cc_fh = cc;
@@ -242,7 +241,7 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     // double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c; // this assumes chi = chi_12 = chi_13 = chi_23
     // above equation not right...
     // 1st derivative from FH from Tree et. al 2019
-    double FH = ((chi_pp*N*cc_fh) + (chi*N*n_fh) + 2*log(cc1_fh) + 2)/(2*N);
+    double FH = ((chiPP*N*cc_fh) + (chi*N*n_fh) + 2*log(cc1_fh) + 2)/(2*N);
     // subtract kap*lap_c for CH
     FH -= kap*lap_c;
     // if our values go over 1 or less than 0, push back toward [0,1]
@@ -353,7 +352,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/ double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -371,7 +370,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         double chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
         // compute chemical potential
         // df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A);
-        df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,N,lap_c,kap,A);
+        df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,chiPP,N,lap_c,kap,A);
         // df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,N,lap_c1,kap,A);
     }
 }
@@ -524,7 +523,7 @@ __global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob
     }
 }
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/ double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     // here we're re-using the Mob array for Dw_nonUniform
     // get unique thread id
@@ -544,7 +543,7 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* n
         // w[gid] += nonUniformLap[gid]*dt;
         // check first layer...
         if (idx == 0) w[gid] = 1.0;
-        else w[gid] += 10.0*df[gid]*dt;
+        else w[gid] += Dw*df[gid]*dt;
     }
 }
 

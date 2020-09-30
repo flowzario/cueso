@@ -36,6 +36,7 @@ class PFNipsLayers : public CuesoBase {
         double phiCutoff;
         double chiPS;
         double chiPN;
+        double chiPP;
         double N;
         double A;
         double Tbath;
