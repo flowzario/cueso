@@ -352,7 +352,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/ double kap, double A, double chiPS, double chiPN, double chiPP, double N, int nx, int ny, int nz, int current_step, double dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -381,7 +381,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-/*__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
+__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
 											 double phiCutoff, double N,
         									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
 {
@@ -407,7 +407,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         //M *= mobReSize;
        // Mob[gid] = M;		  
     }
-}*/
+}
 
 /************************************************************************************
   * Computes the non-uniform mobility and chemical potential laplacian, multiplies 
@@ -516,10 +516,12 @@ __global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
         double cc1 = c1[gid];
-        // TODO
-        double D = 10 - cc*2 - cc1*8;
-        if (D < 0) D = 1;
-        Mob[gid] = D;
+        double cN = 1.0 - cc - cc1;
+        // TODO - weighted average of all three fields 
+        // polymer 1, polymer 2, and nonsolvent
+        // double D = 10 - cc*2 - cc1*8;
+        // if (D < 0) D = 1;
+        // Mob[gid] = D;
     }
 }
 
