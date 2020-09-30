@@ -24,7 +24,7 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob,double M,double mob
 double phiCutoff, double N, double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast);
 
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1,double* df,double* df1, double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,/*double* c1,*/double* df,/*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
  
 // kernel for evolving water field using Fick's 2nd law...
 

@@ -273,7 +273,11 @@ void PFNipsLayers::computeInterval(int interval)
 
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,/*c1_d,*/df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
+        cudaDeviceSynchronize();
+        
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,/*c1_d,*/df1_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
