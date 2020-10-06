@@ -301,7 +301,8 @@ void PFNipsLayers::computeInterval(int interval)
         // ------------------------------------------------
         
         // ---------------------------
-        // compute water diffusion
+        // compute water diffusion 
+        // TODO fix non-uniform
         // ---------------------------
         
         // 1 calculate mu for Nonsolvent diffusion
@@ -329,30 +330,6 @@ void PFNipsLayers::computeInterval(int interval)
         update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("updateWater kernel fail");
         cudaDeviceSynchronize();
-        
-        // ----------------------------
-        // compute water diffusion 
-        //     TODO NON-UNIFORM
-        // ----------------------------
-        
-        // calculate laplacian for water concentration
-        /*calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap water laplacian kernel fail");
-        cudaDeviceSynchronize();*/
-        
-        
-
-        /*calculate_water_diffusion<<<blocks,blockSize>>>(w_d,c_d,c1_d,Mob_d,Dw,Dw1,water_CB,nx,ny,nz);
-        cudaCheckAsyncErrors("calculateLap water diffusion kernel fail");
-        cudaDeviceSynchronize();*/
-        // calculate nonuniform laplacian for diffusion
-
-        
-        // comment out water separation ...
-        // calculate laplacian for water concentration
-        /*calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(w_d,df_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
-        cudaDeviceSynchronize();*/
         
 
         
