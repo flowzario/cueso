@@ -25,16 +25,18 @@ double phiCutoff, double N, double gamma, double nu, double D0, double Mweight, 
 
 
 __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,/*double* c1,*/double* df,/*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+
+__global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutoff, int nx, int ny, int nz);
  
 // kernel for evolving water field using Fick's 2nd law...
 
-__global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mob, double Dw, double water_CB,double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz);
+__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB,double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz);
 
-__global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob,double Dw,double Dw1,double water_CB,int nx, int ny, int nz);
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double Dw1,int nx, int ny, int nz);
 
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
-/*__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);*/
+__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 

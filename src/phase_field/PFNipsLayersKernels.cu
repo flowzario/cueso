@@ -381,7 +381,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-/*__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
+__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
 											 double phiCutoff, double N,
         									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
 {
@@ -390,15 +390,14 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
     int idz = blockIdx.z*blockDim.z + threadIdx.z;
     if (idx<nx && idy<ny && idz<nz)
     {
-        M = 1.0;
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
-        //double FH2 = d2dc2_FH_NIPS(cc,N);
-        //double D_phil = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
-        //double Dtemp = D0*Tcast/273.15;
-        //M = Dtemp*D_phil/FH2;
-        //if (M > 1.0) M = 1.0;     // making mobility max = 1
-        //else if (M < 0.0) M = 0.001; // mobility min = 0.001
+        if (cc < 0.0) cc = 0.0;
+        else if (cc > 1.0) cc = 1.0;
+        double mobility = M*cc*(1.0-cc);
+
+        if (mobility > 1.0) mobility = 1.0;     // making mobility max = 1
+        else if (mobility < 0.0) mobility = 0.001; // mobility min = 0.001
         // Using phiCutoff as vitrification
         //if (cc > phiCutoff) { 
         //    M *= 1e-6;
@@ -407,7 +406,22 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         //M *= mobReSize;
        // Mob[gid] = M;		  
     }
-}*/
+}
+
+
+__global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutoff,int nx, int ny, int nz)
+{
+    int idx = blockIdx.x*blockDim.x + threadIdx.x;
+    int idy = blockIdx.y*blockDim.y + threadIdx.y;
+    int idz = blockIdx.z*blockDim.z + threadIdx.z;
+    if (idx<nx && idy<ny && idz<nz)
+    {
+        int gid = nx*ny*idz + nx*idy + idx;
+        double cc = c[gid];
+        double cc1 = c1[gid];
+        if (cc + cc1 >= phiCutoff) Mob[gid] *= 0.001;
+    }
+}
 
 /************************************************************************************
   * Computes the non-uniform mobility and chemical potential laplacian, multiplies 
@@ -449,7 +463,7 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, /*double* c1,*/ do
 
 
 
-/*__global__ void calculate_muNS_NIPS(double*w, double*c, double* muNS, double* Mob, double Dw, double water_CB, double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz)
+__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB, double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -463,20 +477,28 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, /*double* c1,*/ do
         // make x = 0 coagulation bath composition
         if (idx == 0) w[gid] = water_CB;
         double ww = w[gid];
+        // assign muNS for calculating laplacian
+        muNS[gid] =  ww;
+        
+        // now assign diffusion to mobility array
         // check that polymer < 1.0 and greater than 0.0
         double cc = c[gid];
         if (cc < 0.0) cc = 0.0;
         else if (cc > 1.0) cc = 1.0;
-        
-        // assign muNS for calculating laplacian
-        muNS[gid] =  ww;
-        
-        double D_NS_phil = philliesDiffusion_NIPS(cc,gamma,nu,Dw,Mweight,Mvolume);
-        Mob[gid] = D_NS_phil;
-        if (Mob[gid] < 0.0) Mob[gid] = 0.0;
+        double cc1 = c1[gid];
+        if (cc1 < 0.0) cc1 = 0.0;
+        else if (cc1 > 1.0) cc1 = 1.0;
+        double cN = 1.0 - cc - cc1;
+        if (cN < 0.0) cN = 0.0;
+        else if (cN > 1.0) cN = 1.0;
+        double D_N = 1.0*cN - 0.5*cc - 0.5*cc1;
+        // assign mobility to D_NS
+        Mob[gid] = D_N;
+        if (D_N < 0.0) Mob[gid] = 0.0;
+        if (D_N > 1.0) Mob[gid] = 1.0;
     }
     
-}*/
+}
 
 
 
@@ -493,7 +515,7 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
     }
 }
 
-/*__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -503,9 +525,9 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
         int gid = nx*ny*idz + nx*idy + idx;
         nonUniformLap[gid] = laplacianNonUniformMob_NIPS(muNS,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
     }
-}*/
+}
 
-__global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob,double Dw,double Dw1,double water_CB,int nx, int ny, int nz)
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double Dw1,int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -516,9 +538,19 @@ __global__ void calculate_water_diffusion(double*w,double*c,double*c1,double*Mob
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
         double cc1 = c1[gid];
-        // TODO
-        double D = 10 - cc*2 - cc1*8;
-        if (D < 0) D = 1;
+        // check top layer 
+        if (cc > 1.0) cc = 1.0;
+        if (cc < 0.0) cc = 0.0;
+        // check bottom layer
+        if (cc1 > 1.0) cc1 = 1.0;
+        if (cc1 < 0.0) cc1 = 0.0;
+        // calculate solvent concentratio
+        double cS = 1.0 - cc -cc1;
+        // calculate diffusion
+        // TODO add Dw, Dwc, Dwc1 
+        // pick a better nomenclature
+        double D = 10*cS - cc*5 - cc1*5;
+        if (D < 0) D = 0.1;
         Mob[gid] = D;
     }
 }
@@ -534,7 +566,7 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* n
     {
         int gid = nx*ny*idz + nx*idy + idx;
         
-        // removing nonUniformLap memory
+        // adding back in nonUniformLaplacian
         //double nonUniformLap_w = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         //if (idx == 0) w[gid] = 1.0;
         //else w[gid] += nonUniformLap_w*dt;

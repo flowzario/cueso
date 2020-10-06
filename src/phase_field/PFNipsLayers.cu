@@ -117,7 +117,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(df1_d);
     cudaFree(Mob_d);
     cudaFree(w_d);
-    //cudaFree(muNS_d);
+    cudaFree(muNS_d);
     //cudaFree(nonUniformLap_d);
     cudaFree(cpyBuff_d);
     cudaFree(devState);
@@ -189,8 +189,8 @@ void PFNipsLayers::initSystem()
     cudaMalloc((void**) &w_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate space for laplacian
-    //cudaMalloc((void**) &muNS_d,size);
-    //cudaCheckErrors("cudaMalloc fail");
+    cudaMalloc((void**) &muNS_d,size);
+    cudaCheckErrors("cudaMalloc fail");
     // copy buffer
     cudaMalloc((void**) &cpyBuff_d,size);
     cudaCheckErrors("cudaMalloc fail");
@@ -199,8 +199,8 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMalloc fail");
     // allocate nonuniform laplacian for mobility 
     // and water diffusion coefficient
-    //cudaMalloc((void**) &nonUniformLap_d,size);
-    //cudaCheckErrors("cudaMalloc fail");
+    cudaMalloc((void**) &nonUniformLap_d,size);
+    cudaCheckErrors("cudaMalloc fail");
     // allocate memory for cuRAND state
     cudaMalloc((void**) &devState,nxyz*sizeof(curandState));
     cudaCheckErrors("cudaMalloc fail");
@@ -266,18 +266,33 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
         
-        // calculate mobility and store it in Mob_d
-        /*calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
+        // calculate mobility for first polymer species and store it in Mob_d
+        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
         cudaCheckAsyncErrors("calculateMobility kernel fail");
-        cudaDeviceSynchronize();*/
+        cudaDeviceSynchronize();
 
+        vitrify_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,phiCutoff,nx,ny,nz);
+        cudaCheckAsyncErrors("vitrify NIPS kernel fail");
+        cudaDeviceSynchronize();
+        
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
         lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,/*c1_d,*/df_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,/*c1_d,*/df1_d,/*df1_d,*/Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
+        // calculate mobility for second polymer species and store it in Mob_d
+        calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M1,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
+        cudaCheckAsyncErrors("calculateMobility kernel fail");
+        cudaDeviceSynchronize();
+        
+        vitrify_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,phiCutoff,nx,ny,nz);
+        cudaCheckAsyncErrors("vitrify NIPS kernel fail");
+        cudaDeviceSynchronize();
+        
+        // calculate the laplacian of the chemical potential, then update c1_d
+        // using an Euler update
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,/*c1_d,*/df1_d,/*df_d,*/Mob_d,/*nonUniformLap_d,*/M,M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -285,38 +300,39 @@ void PFNipsLayers::computeInterval(int interval)
         // compute CH for c1.......is this needed??????
         // ------------------------------------------------
         
-        // calculate the chemical potential for c1 and store in df1_d
-        // calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df_d,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
-        // cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
-        // cudaDeviceSynchronize();
-        
-        // calculate mobility and store it in Mob_d
-        /*calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D01,Mweight,Mvolume,Tcast);
-        cudaCheckAsyncErrors("calculateMobility kernel fail");
-        cudaDeviceSynchronize();*/
-        
-        // calculate the laplacian of the chemical potential, then update c1_d
-        // using an Euler update
-        // lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,c_d,df_d,df_d,Mob_d,/*nonUniformLap_d,*/M1,dt,nx,ny,nz,dx,bx,by,bz);
-        // cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
-        // cudaDeviceSynchronize();
-        
         // ---------------------------
         // compute water diffusion
         // ---------------------------
         
-        // calculate mu for Nonsolvent diffusion
-        /*calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
+        // 1 calculate mu for Nonsolvent diffusion
+        calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
+        cudaDeviceSynchronize();
+        
+        // 2 calculate laplacian for diffusing water
+        calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors('calculateLap water kernel fail');    
+        cudaDeviceSynchronize();
+        
+        // - calcualte diffusion of water based on local polymer concentration
+        // added this method to calculate_muNS_NIPS
+        /*calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,Dw1,nx,ny,nz);
+        cudaCheckAsyncErrors('calculate water diffusivity fail');
         cudaDeviceSynchronize();*/
         
-        // calculate laplacian for diffusing water
-        /*calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors('calculateLap water kernel fail');    
-        cudaDeviceSynchronize();*/
+        // 3 calculate non-uniform laplacian for diffusion and concentration 
+        calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
+        cudaDeviceSynchronize();
+        
+        // 4 euler update water diffusing
+        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors("updateWater kernel fail");
+        cudaDeviceSynchronize();
         
         // ----------------------------
-        // compute water diffusion
+        // compute water diffusion 
+        //     TODO NON-UNIFORM
         // ----------------------------
         
         // calculate laplacian for water concentration
@@ -324,18 +340,13 @@ void PFNipsLayers::computeInterval(int interval)
         cudaCheckAsyncErrors("calculateLap water laplacian kernel fail");
         cudaDeviceSynchronize();*/
         
-        // euler update water diffusing
-        //update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
-        //cudaCheckAsyncErrors("updateWater kernel fail");
-        //cudaDeviceSynchronize();
+        
 
         /*calculate_water_diffusion<<<blocks,blockSize>>>(w_d,c_d,c1_d,Mob_d,Dw,Dw1,water_CB,nx,ny,nz);
         cudaCheckAsyncErrors("calculateLap water diffusion kernel fail");
         cudaDeviceSynchronize();*/
         // calculate nonuniform laplacian for diffusion
-        /*calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
-        cudaDeviceSynchronize();*/
+
         
         // comment out water separation ...
         // calculate laplacian for water concentration
