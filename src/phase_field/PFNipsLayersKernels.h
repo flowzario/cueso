@@ -17,20 +17,20 @@ __global__ void calculateLapBoundaries_NIPS(double* c, double* df,int nx, int ny
 								       double h, bool bX, bool bY, bool bZ);
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1, double* w,double* df,/*double* df1,*/double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt);
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1, double* w,double* df,double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt);
 
 
 __global__ void calculateMobility_NIPS(double* c,double* Mob,double M,double mobReSize,int nx,int ny,int nz,
-double phiCutoff, double N, double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast);
+double phiCutoff, double N, double D0,double Tcast);
 
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,/*double* c1,*/double* df,/*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* df,double* Mob, double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutoff, int nx, int ny, int nz);
  
 // kernel for evolving water field using Fick's 2nd law...
 
-__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB,double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz);
+__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB, int nx, int ny, int nz);
 
 __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_N, double W_P1, double W_P2,int nx, int ny, int nz);
 
