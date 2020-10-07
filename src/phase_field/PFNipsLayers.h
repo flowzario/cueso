@@ -32,6 +32,7 @@ class PFNipsLayers : public CuesoBase {
         double dt;
         double dx,dy,dz;
         double water_CB;
+        int bathHeight;
         double NS_in_dope;
         double phiCutoff;
         double chiPS;
@@ -46,16 +47,9 @@ class PFNipsLayers : public CuesoBase {
         double Tinit;
         double Tcast;
         double noiseStr;
-        double nu;
-        double nuDw;
-        double gamma;
-        double gammaDw;
         double D0;
-        double D01;
+        //double D01;
         double Dw;
-        double Dw1;
-        double Mweight;
-        double Mvolume;
         bool bx,by,bz;
         Rand rng;
         vector<double> c;

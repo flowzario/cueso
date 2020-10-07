@@ -381,9 +381,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz,
-											 double phiCutoff, double N,
-        									 double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
+__global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mobReSize, int nx, int ny, int nz, double phiCutoff, double N,double D0, double Tcast)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -398,13 +396,7 @@ __global__ void calculateMobility_NIPS(double* c,double* Mob, double M,double mo
 
         if (mobility > 1.0) mobility = 1.0;     // making mobility max = 1
         else if (mobility < 0.0) mobility = 0.001; // mobility min = 0.001
-        // Using phiCutoff as vitrification
-        //if (cc > phiCutoff) { 
-        //    M *= 1e-6;
-        //}
-        // resize mobility to be similar to experiments
-        //M *= mobReSize;
-       // Mob[gid] = M;		  
+        Mob[gid] = mobility;
     }
 }
 
@@ -430,7 +422,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutof
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, /*double* c1,*/ double* df, /*double* df1,*/ double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -451,20 +443,14 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, /*double* c1,*/ do
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
-        //double cc = c[gid];
-        //double cc1 = c1[gid];
-        //if (cc + cc1 >= 0.75) M = 0;
-        //if (cc1 > 0.75) M = 0;
         double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ); // commented out to save memory
         c[gid] += M*lap_c*dt;
-        //c1[gid] += M1*lap_c*dt + M*lap_c1*dt; // commented out to save memory
     } 
 }
 
 
 
-__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB, double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz)
+__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -548,8 +534,6 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         // calculate solvent concentratio
         double cS = 1.0 - cc -cc1;
         // calculate diffusion
-        // TODO add Dw, Dwc, Dwc1 
-        // pick a better nomenclature
         double Dscale = (W_S*cS + cc*W_P1 + cc1*W_P2)/(W_S + W_P1 + W_P2);
         if (Dscale < 0) Dscale = 0.001;
         Dw *= Dscale;
@@ -570,15 +554,9 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         
         // adding back in nonUniformLaplacian
         //double nonUniformLap_w = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //if (idx == 0) w[gid] = 1.0;
-        //else w[gid] += nonUniformLap_w*dt;
-        
         // with nonUniformLap memory
         if (idx == 0) w[gid] = 1.0;
-        w[gid] += nonUniformLap[gid]*dt;
-        // check first layer...
-        /*if (idx == 0) w[gid] = 1.0;
-        else w[gid] += Dw*df[gid]*dt;*/
+        else w[gid] += nonUniformLap[gid]*dt;
     }
 }
 
@@ -611,6 +589,7 @@ __global__ void addNoise_NIPS(double *c,int nx, int ny, int nz, double dt, int c
     int idz = blockIdx.z*blockDim.z + threadIdx.z;
     if (idx<nx && idy<ny && idz<nz)
     {
+        // TODO add noiseScale variable
         int gid = nx*ny*idz + nx*idy + idx;
         double noise = curand_uniform_double(&state[gid]);
         double cc = c[gid];
