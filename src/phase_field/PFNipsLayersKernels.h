@@ -32,13 +32,13 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutof
 
 __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB,double gamma, double nu, double Mweight, double Mvolume, int nx, int ny, int nz);
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double Dw1,int nx, int ny, int nz);
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_N, double W_P1, double W_P2,int nx, int ny, int nz);
 
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void update_water_NIPS(double* w,double* df, double* Mob, double* nonUniformLap,double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
 __global__ void init_cuRAND_NIPS(unsigned long seed, curandState* state,int nx, int ny, int nz);
 

@@ -450,7 +450,7 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, /*double* c1,*/ do
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
-        double cc = c[gid];
+        //double cc = c[gid];
         //double cc1 = c1[gid];
         //if (cc + cc1 >= 0.75) M = 0;
         //if (cc1 > 0.75) M = 0;
@@ -482,7 +482,7 @@ __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, 
         
         // now assign diffusion to mobility array
         // check that polymer < 1.0 and greater than 0.0
-        double cc = c[gid];
+        /*double cc = c[gid];
         if (cc < 0.0) cc = 0.0;
         else if (cc > 1.0) cc = 1.0;
         double cc1 = c1[gid];
@@ -495,7 +495,7 @@ __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, 
         // assign mobility to D_NS
         Mob[gid] = D_N;
         if (D_N < 0.0) Mob[gid] = 0.0;
-        if (D_N > 1.0) Mob[gid] = 1.0;
+        if (D_N > 1.0) Mob[gid] = 1.0;*/
     }
     
 }
@@ -527,7 +527,7 @@ __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double*
     }
 }
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double Dw1,int nx, int ny, int nz)
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_S,double W_P1,double W_P2,int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -549,13 +549,14 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         // calculate diffusion
         // TODO add Dw, Dwc, Dwc1 
         // pick a better nomenclature
-        double D = 10*cS - cc*5 - cc1*5;
-        if (D < 0) D = 0.1;
-        Mob[gid] = D;
+        double Dscale = (W_S*cS + cc*W_P1 + cc1*W_P2)/(W_S + W_P1 + W_P2);
+        if (Dscale < 0) Dscale = 0.001;
+        Dw *= Dscale;
+        Mob[gid] = Dw;
     }
 }
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* nonUniformLap,*/double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void update_water_NIPS(double* w,double* df, double* Mob, double* nonUniformLap,double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     // here we're re-using the Mob array for Dw_nonUniform
     // get unique thread id
@@ -572,10 +573,11 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, /*double* n
         //else w[gid] += nonUniformLap_w*dt;
         
         // with nonUniformLap memory
-        // w[gid] += nonUniformLap[gid]*dt;
-        // check first layer...
         if (idx == 0) w[gid] = 1.0;
-        else w[gid] += Dw*df[gid]*dt;
+        w[gid] += nonUniformLap[gid]*dt;
+        // check first layer...
+        /*if (idx == 0) w[gid] = 1.0;
+        else w[gid] += Dw*df[gid]*dt;*/
     }
 }
 
