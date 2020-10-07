@@ -51,6 +51,9 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     chiPS = input_params("PFNipsLayers/chiPS",0.034);
     chiPN = input_params("PFNipsLayers/chiPN",1.5);
     chiPP = input_params("PFNipsLayers/chiPP",1.0);
+    W_S = input_params("PFNipsLayers/W_S",1.0);
+    W_P1 = input_params("PFNipsLayers/W_P1",1.0);
+    W_P2 = input_params("PFNipsLayers/W_P2",1.0);
     phiCutoff = input_params("PFNipsLayers/phiCutoff",0.75);
     N = input_params("PFNipsLayers/N",100.0);
     A = input_params("PFNipsLayers/A",1.0);
@@ -306,6 +309,8 @@ void PFNipsLayers::computeInterval(int interval)
         // ---------------------------
         
         // 1 calculate mu for Nonsolvent diffusion
+        // removed water diffusivity scaling and added to 
+        // calculate_water_diffusion
         calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,Mob_d,Dw,water_CB,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
         cudaDeviceSynchronize();
@@ -318,9 +323,9 @@ void PFNipsLayers::computeInterval(int interval)
 
         // - calcualte diffusion of water based on local polymer concentration
         // added this method to calculate_muNS_NIPS
-        /*calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,Dw1,nx,ny,nz);
+        calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,nx,ny,nz);
         cudaCheckAsyncErrors('calculate water diffusivity fail');
-        cudaDeviceSynchronize();*/
+        cudaDeviceSynchronize();
         
         // 3 calculate non-uniform laplacian for diffusion and concentration 
         calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
@@ -329,7 +334,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // 4 euler update water diffusing
-        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
+        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,nonUniformLap_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("updateWater kernel fail");
         cudaDeviceSynchronize();
         
