@@ -55,6 +55,7 @@ class PFNipsLayers : public CuesoBase {
         vector<double> c;
         vector<double> c1;
         vector<double> water;
+        vector<double> Mob;
     
         // cuda members
         int size;

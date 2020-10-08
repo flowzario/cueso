@@ -268,7 +268,7 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
   * Compute diffusion coefficient via phillies eq.
   ***********************************************************/
 
-/*__device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu, 
+__device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu, 
 								    double D0, double Mweight, double Mvolume)
 {
 	double cc_d = 1.0;
@@ -278,7 +278,7 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
 	else cc_d = cc * rho; // convert phi to g/L
 	double Dp = D0 * exp(-gamma * pow(cc_d,nu));
 	return Dp;
-}*/
+}
 
 
 // -------------------------------------------------------
@@ -422,7 +422,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutof
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double* Mob,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double* Mob,/*double* nonUniformLap,*/ /*double M, double M1,*/ double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -438,19 +438,19 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double
         
         // calculate non-uniform laplacian without nonUniform array/field (save memory)
         // do euler update
-        // double nonUniformLap_c = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        // c[gid] += nonUniformLap_c*dt;
+        double nonUniformLap_c = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        c[gid] += nonUniformLap_c*dt;
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
-        double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        c[gid] += M*lap_c*dt;
+        //double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //c[gid] += M*lap_c*dt;
     } 
 }
 
 
 
-__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, double* Mob, double Dw, double water_CB, int nx, int ny, int nz)
+__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, /*double* Mob,*/ double Dw, double water_CB, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -502,6 +502,7 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
     }
 }
 
+// TODO is this function necessary...
 __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -533,11 +534,24 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         if (cc1 < 0.0) cc1 = 0.0;
         // calculate solvent concentratio
         double cS = 1.0 - cc -cc1;
+        if (cS > 1.0) cS = 1.0;
+        if (cS < 0.0) cS = 0.0;
+        double checkZero = cS + cc + cc1;
+        // TODO does this remove the instability...
+        // what value should we use here...
+        // TODO remove this if its unnecessary
+        if (checkZero <= 0.0) checkZero = 1.0;
         // calculate diffusion
-        double Dscale = (W_S*cS + cc*W_P1 + cc1*W_P2)/(W_S + W_P1 + W_P2);
-        if (Dscale < 0) Dscale = 0.001;
-        Dw *= Dscale;
-        Mob[gid] = Dw;
+        double Dweight = (W_S*cS + cc*W_P1 + cc1*W_P2)/*/(W_S + W_P1 + W_P2)*/;
+        //if (Dweight < 0) Dweight = 0.001;
+        // TODO why does this work.... and the others dont
+        //double dw = Dw*Dweight;
+        // TODO is this rational?
+        // the below isn't necessary
+        // see if instability improves
+        //if (Dweight > Dw) Dweight = Dw;
+        //if (Dweight < 0.0) Dweight = 0.1;
+        Mob[gid] = Dweight;
     }
 }
 
@@ -553,10 +567,10 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         int gid = nx*ny*idz + nx*idy + idx;
         
         // adding back in nonUniformLaplacian
-        //double nonUniformLap_w = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //nonUniformLap[gid]= laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         // with nonUniformLap memory
-        if (idx == 0) w[gid] = 1.0;
-        else w[gid] += nonUniformLap[gid]*dt;
+        //if (idx == 0) w[gid] = 1.0;
+        w[gid] += nonUniformLap[gid]*dt;
     }
 }
 
