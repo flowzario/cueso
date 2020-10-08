@@ -141,6 +141,7 @@ void PFNipsLayers::initSystem()
             water.push_back(water_CB);
             c.push_back(0.0);
             c1.push_back(0.0);
+            Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -150,6 +151,7 @@ void PFNipsLayers::initSystem()
             c.push_back(co + 0.1*(r-0.5));
             c1.push_back(0.0);
             water.push_back(NS_in_dope);
+            Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -159,6 +161,7 @@ void PFNipsLayers::initSystem()
             c.push_back(0.0);
             c1.push_back(co1 + 0.1*(r-0.5));
             water.push_back(NS_in_dope);
+            Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -196,6 +199,7 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMalloc fail");
     // allocate nonuniform laplacian for mobility 
     // and water diffusion coefficient
+    // TODO remove nonUniformLap_d
     cudaMalloc((void**) &nonUniformLap_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate memory for cuRAND state
@@ -207,6 +211,8 @@ void PFNipsLayers::initSystem()
     cudaMemcpy(c1_d,&c1[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
     cudaMemcpy(w_d,&water[0],size,cudaMemcpyHostToDevice);
+    cudaCheckErrors("cudaMemcpy H2D fail");
+    cudaMemcpy(Mob_d,&Mob[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
     
     // ----------------------------------------
@@ -274,7 +280,7 @@ void PFNipsLayers::computeInterval(int interval)
         
         // calculate the laplacian of the chemical potential, then update c_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,Mob_d,M,M1,dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,Mob_d,/*M,M1,*/dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -289,7 +295,7 @@ void PFNipsLayers::computeInterval(int interval)
         
         // calculate the laplacian of the chemical potential, then update c1_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,Mob_d,M,M1,dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,Mob_d,/*M,M1,*/dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
@@ -305,17 +311,16 @@ void PFNipsLayers::computeInterval(int interval)
         // 1 calculate mu for Nonsolvent diffusion
         // removed water diffusivity scaling and added to 
         // calculate_water_diffusion
-        calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,Mob_d,Dw,water_CB,/*gammaDw,nuDw,Mweight,Mvolume,*/nx,ny,nz);
+        calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,/*Mob_d,*/Dw,water_CB,/*gammaDw,nuDw,Mweight,Mvolume,*/nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
         cudaDeviceSynchronize();
         
-        // 2 calculate laplacian for diffusing water
+        // 2 calculate laplacian for muNS
         calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors('calculateLap water kernel fail');    
         cudaDeviceSynchronize();
         
         // - calcualte diffusion of water based on local polymer concentration
-        // added this method to calculate_muNS_NIPS
         calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,nx,ny,nz);
         cudaCheckAsyncErrors('calculate water diffusivity fail');
         cudaDeviceSynchronize();
@@ -367,6 +372,11 @@ void PFNipsLayers::computeInterval(int interval)
     cudaMemcpyAsync(&water[0],w_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
+    // mobility concentration
+    populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
+    cudaMemcpyAsync(&Mob[0],Mob_d,size,cudaMemcpyDeviceToHost);
+    cudaCheckErrors("cudaMemcpyAsync D2H fail");
+    cudaDeviceSynchronize();
 }
 
 
@@ -385,9 +395,11 @@ void PFNipsLayers::writeOutput(int step)
     ofstream outfile;
     ofstream outfile2;
     ofstream outfile3;
+    ofstream outfile4;
     stringstream filenamecombine;
     stringstream filenamecombine2;
     stringstream filenamecombine3;
+    stringstream filenamecombine4;
     
     filenamecombine << "vtkoutput/c_t_" << step << ".vtk";
     string filename = filenamecombine.str();
@@ -525,6 +537,50 @@ void PFNipsLayers::writeOutput(int step)
     // -----------------------------------
 
     outfile2.close();
+    
+    filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
+    string filename4 = filenamecombine4.str();
+    outfile4.open(filename4.c_str(), std::ios::out);
+
+    // -----------------------------------
+    //	Write the 'vtk' file header:
+    // -----------------------------------
+
+    outfile4 << "# vtk DataFile Version 3.1" << endl;
+    outfile4 << "VTK file containing grid data" << endl;
+    outfile4 << "ASCII" << endl;
+    outfile4 << " " << endl;
+    outfile4 << "DATASET STRUCTURED_POINTS" << endl;
+    outfile4 << "DIMENSIONS" << d << nx << d << ny << d << nz << endl;
+    outfile4 << "ORIGIN " << d << 0 << d << 0 << d << 0 << endl;
+    outfile4 << "SPACING" << d << 1.0 << d << 1.0 << d << 1.0 << endl;
+    outfile4 << " " << endl;
+    outfile4 << "POINT_DATA " << nxyz << endl;
+    outfile4 << "SCALARS mob float" << endl;
+    outfile4 << "LOOKUP_TABLE default" << endl;
+
+    // -----------------------------------
+    //	Write the data:
+    // NOTE: x-data increases fastest,
+    //       then y-data, then z-data
+    // -----------------------------------
+
+    for(size_t k=0;k<nz;k++)
+        for(size_t j=0;j<ny;j++)
+            for(size_t i=0;i<nx;i++)
+            {
+                int id = nx*ny*k + nx*j + i;
+                double point = Mob[id];
+                // for paraview
+                if (point < 1e-30) point = 0.0; // making really small numbers == 0 
+                outfile4 << point << endl;
+            }
+
+    // -----------------------------------
+    //	Close the file:
+    // -----------------------------------
+
+    outfile4.close();
     
     
 }
