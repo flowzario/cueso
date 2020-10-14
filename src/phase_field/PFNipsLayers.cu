@@ -141,7 +141,7 @@ void PFNipsLayers::initSystem()
             water.push_back(water_CB);
             c.push_back(0.0);
             c1.push_back(0.0);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -151,7 +151,7 @@ void PFNipsLayers::initSystem()
             c.push_back(co + 0.1*(r-0.5));
             c1.push_back(0.0);
             water.push_back(NS_in_dope);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -161,7 +161,7 @@ void PFNipsLayers::initSystem()
             c.push_back(0.0);
             c1.push_back(co1 + 0.1*(r-0.5));
             water.push_back(NS_in_dope);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -212,8 +212,8 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMemcpy H2D fail");
     cudaMemcpy(w_d,&water[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
-    cudaMemcpy(Mob_d,&Mob[0],size,cudaMemcpyHostToDevice);
-    cudaCheckErrors("cudaMemcpy H2D fail");
+    /*cudaMemcpy(Mob_d,&Mob[0],size,cudaMemcpyHostToDevice);
+    cudaCheckErrors("cudaMemcpy H2D fail");*/
     
     // ----------------------------------------
     // Initialize thermal fluctuations of
@@ -373,10 +373,10 @@ void PFNipsLayers::computeInterval(int interval)
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
     // mobility concentration
-    populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
+    /*populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
     cudaMemcpyAsync(&Mob[0],Mob_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize();*/
 }
 
 
@@ -538,7 +538,7 @@ void PFNipsLayers::writeOutput(int step)
 
     outfile2.close();
     
-    filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
+    /*filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
     string filename4 = filenamecombine4.str();
     outfile4.open(filename4.c_str(), std::ios::out);
 
@@ -580,7 +580,7 @@ void PFNipsLayers::writeOutput(int step)
     //	Close the file:
     // -----------------------------------
 
-    outfile4.close();
+    outfile4.close();*/
     
     
 }
