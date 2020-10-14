@@ -229,19 +229,22 @@ __device__ double chiDiffuse_NIPS(double locWater, double chiPS, double chiPN)
 
 __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double chiPP, double N, double lap_c, double kap, double A)
 {
-    double cc_fh = 0.0;
-    double cc1_fh = 0.0;
-    if (cc <= 0.0) cc_fh = 0.0001;
-    else if (cc >= 1.0) cc_fh = 0.999;
-    else cc_fh = cc;
-    if (cc1 <= 0.0) cc1_fh = 0.0001;
-    else if (cc1 >= 1.0) cc1_fh = 0.999;
-    else cc1_fh = cc1;
-    double n_fh = 1.0 - cc_fh - cc1_fh;
+    //double cc_fh = 0.0;
+    //double cc1_fh = 0.0;
+    if (cc <= 0.0) cc/*_fh*/ = 0.0001;
+    else if (cc >= 1.0) cc/*_fh*/ = 1.0;
+    //else cc/*_fh*/ = cc;
+    if (cc1 <= 0.0) cc1/*_fh*/ = 0.0;
+    else if (cc1 >= 1.0) cc1/*_fh*/ = 1.0;
+    //else cc1/*_fh*/ = cc1;
+    double n_fh = 1.0 - cc/*_fh*/ - cc1/*_fh*/;
+    if (n_fh <= 0.0) n_fh = 0.0000;
+    else if (n_fh >= 1.0) n_fh = 1.0;
     // double FH = (chi*N*(cc1_fh + n_fh) + 2*log(cc_fh)+ 2)/(2*N) - kap*lap_c; // this assumes chi = chi_12 = chi_13 = chi_23
     // above equation not right...
     // 1st derivative from FH from Tree et. al 2019
-    double FH = ((chiPP*N*cc_fh) + (chi*N*n_fh) + 2*log(cc1_fh) + 2)/(2*N);
+    //double FH = ((chiPP*N*cc_fh) + (chi*N*n_fh) + 2*log(cc1_fh) + 2)/(2*N);
+    double FH = 0.5*chiPP*cc1 + 0.5*chi*n_fh + log(cc)/N + 1.0/N;
     // subtract kap*lap_c for CH
     FH -= kap*lap_c;
     // if our values go over 1 or less than 0, push back toward [0,1]
@@ -502,6 +505,7 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
 }
 
 // TODO is this function necessary...
+// check later... first run some simulations
 __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -566,9 +570,8 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         int gid = nx*ny*idz + nx*idy + idx;
         
         // adding back in nonUniformLaplacian
+        // TODO do we need the nonUniformLaplacian Kernel?
         //nonUniformLap[gid]= laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        // with nonUniformLap memory
-        //if (idx == 0) w[gid] = 1.0;
         w[gid] += nonUniformLap[gid]*dt;
     }
 }
