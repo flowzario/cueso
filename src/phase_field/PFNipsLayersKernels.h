@@ -20,8 +20,8 @@ __global__ void calculateLapBoundaries_NIPS(double* c, double* df,int nx, int ny
 __global__ void calculateChemPotFH_NIPS(double* c,double* c1, double* w,double* df,double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt);
 
 
-__global__ void calculateMobility_NIPS(double* c,double* Mob,double M,double mobReSize,int nx,int ny,int nz,
-double phiCutoff, double N, double D0,double Tcast);
+__global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double M,double mobReSize,int nx,int ny,int nz,
+double phiCutoff, double N,double gamma,double nu,double D0,double Mweight, double Mvolume,double Tcast);
 
 
 __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* df,double* Mob, /*double M, double M1,*/ double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);

@@ -48,8 +48,12 @@ class PFNipsLayers : public CuesoBase {
         double Tcast;
         double noiseStr;
         double D0;
-        //double D01;
+        double D01;
         double Dw;
+        double gamma;
+        double nu;
+        double Mweight;
+        double Mvolume;
         bool bx,by,bz;
         Rand rng;
         vector<double> c;

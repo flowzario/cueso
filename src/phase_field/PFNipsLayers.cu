@@ -65,6 +65,10 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     Dw = input_params("PFNipsLayers/Dw",10.0);
     numOutputs = input_params("Output/numOutputs",1);
     outInterval = numSteps/numOutputs;
+    Mweight = input_params("PFNipsLayers/Mweight",1.0);
+    Mvolume = input_params("PFNipsLayers/Mvolume",1.0);
+    gamma = input_params("PFNipsLayers/gamma",1.0);
+    nu = input_params("PFNipsLayers/nu",1.0);
     // ---------------------------------------
     // Set up cuda kernel launch variables:
     // ---------------------------------------
@@ -270,7 +274,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // calculate mobility for first polymer species and store it in Mob_d
-        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,/*gamma,nu,*/D0,/*Mweight,Mvolume,*/Tcast);
+        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
         cudaCheckAsyncErrors("calculateMobility kernel fail");
         cudaDeviceSynchronize();
 
@@ -285,7 +289,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // calculate mobility for second polymer species and store it in Mob_d
-        calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M1,mobReSize,nx,ny,nz,phiCutoff,N,/*gamma,nu,*/D0,/*Mweight,Mvolume,*/Tcast);
+        calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,c_d,Mob_d,M1,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);
         cudaCheckAsyncErrors("calculateMobility kernel fail");
         cudaDeviceSynchronize();
         
