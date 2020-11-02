@@ -120,7 +120,6 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(Mob1_d);
     cudaFree(w_d);
     cudaFree(muNS_d);
-    // TODO is this necessary
     cudaFree(nonUniformLap_d);
     cudaFree(cpyBuff_d);
     cudaFree(devState);
@@ -207,9 +206,7 @@ void PFNipsLayers::initSystem()
     // allocate mobility
     cudaMalloc((void**) &Mob1_d,size);
     cudaCheckErrors("CudaMalloc fail");
-    // allocate nonuniform laplacian for mobility 
-    // and water diffusion coefficient
-    // TODO remove nonUniformLap_d - not needed?
+    // allocate nonuniform laplacian for NS update
     cudaMalloc((void**) &nonUniformLap_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate memory for cuRAND state
@@ -321,14 +318,14 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // - calcualte diffusion of water based on local polymer concentration
-        //calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,nx,ny,nz);
-        //cudaCheckAsyncErrors('calculate water diffusivity fail');
-        //cudaDeviceSynchronize();
+        calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,nx,ny,nz);
+        cudaCheckAsyncErrors('calculate water diffusivity fail');
+        cudaDeviceSynchronize();
         
         // 3 calculate non-uniform laplacian for diffusion and concentration 
-        //calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
-        //cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
-        //cudaDeviceSynchronize();
+        calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
+        cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
+        cudaDeviceSynchronize();
         
         // 4 euler update water diffusing
         update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,nonUniformLap_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);

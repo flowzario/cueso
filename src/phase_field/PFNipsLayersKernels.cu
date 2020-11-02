@@ -591,7 +591,7 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         //if (checkZero <= 0.0) checkZero = 1.0;
         // calculate diffusion
         double Dweight = (W_S*cS + cc*W_P1 + cc1*W_P2)/*/(W_S + W_P1 + W_P2)*/;
-        //if (Dweight < 0) Dweight = 0.001;
+        if (Dweight <= 0) Dweight = 0.001;
         // TODO why does this work.... and the others dont
         //double dw = Dw*Dweight;
         // TODO is this rational?
@@ -615,10 +615,11 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         int gid = nx*ny*idz + nx*idy + idx;
         
         // adding back in nonUniformLaplacian
-        // TODO do we need the nonUniformLaplacian Kernel?
-        //nonUniformLap[gid]= laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //w[gid] += nonUniformLap[gid]*dt;
-        w[gid] += 20*df[gid]*dt;
+        // TODO do we need the nonUniformLaplacian Kernel? aparantly so...
+        double nonUniformLapNS = nonUniformLap[gid]; //laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //double nonUniformLapNS = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        w[gid] += nonUniformLapNS*dt;
+        //w[gid] += 20*df[gid]*dt;
     }
 }
 
