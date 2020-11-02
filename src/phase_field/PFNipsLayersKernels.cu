@@ -232,21 +232,23 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     // make sure everythin is in the range of 0-1
     double cc_fh = 0.0;
     double cc1_fh = 0.0;
-    if (cc <= 0.0) cc_fh = 0.0001;
+    double n_fh = 0.0;
+    if (cc <= 0.0) cc_fh = 1e-6;
     else if (cc >= 1.0) cc_fh = 1.0;
     else cc_fh = cc;
     if (cc1 <= 0.0) cc1_fh = 0.0;
     else if (cc1 >= 1.0) cc1_fh = 1.0;
     else cc1_fh = cc1;
-    double n_fh = 1.0 - cc_fh - cc1_fh;
-    if (n_fh <= 0.0) n_fh = 0.0;
+    n_fh = 1.0 - cc_fh - cc1_fh;
+    if (n_fh <= 0.0) n_fh = 1e-6;
     else if (n_fh >= 1.0) n_fh = 1.0;
     else n_fh = 1.0 - cc_fh - cc1_fh;
     // 1st derivative from FH from Tree et. al 2019
     // with our substitution (1.0-c-c1) for c_N
     // remove the 0.5... not sure why doug tree had that in his work...
     // here we use chiP1-S = chiP2-S
-    double FH = (chiPP*cc1_fh - 2.0*chi*cc_fh - 2.0*chi*cc1_fh + chi) + (log(cc_fh)+1.0)/N - log(n_fh) -1;
+    //double FH = (chiPP*cc1_fh - 2.0*chi*cc_fh - 2.0*chi*cc1_fh + chi) + (log(cc_fh)+1.0)/N - log(n_fh) -1;
+    double FH = (log(cc_fh)+1.0)/N - log(n_fh) - 1.0 + chiPP*cc1_fh - chi*(2.0*cc_fh + 2.0*cc1_fh - 1.0); 
     
     // without the substitution (1-c-c1) for c_n
     //double FH = 0.5*chiPP*cc1 + 0.5*chi*n_fh + log(cc)/N + 1.0/N;
@@ -268,20 +270,21 @@ __device__ double d2dc2_FH_NIPS(double cc, double cc1, double N)
    
     double cc_fh = 0.0;
     double cc1_fh = 0.0;
+    double ss_fh = 0.0;
     // check first concentration in bounds
-   if (cc < 0.0) cc_fh = 0.0001;
-   else if (cc > 1.0) cc_fh = 0.999;
-   else cc_fh = cc;
+    if (cc < 0.0) cc_fh = 1e-6;
+    else if (cc > 1.0) cc_fh = 0.999999;
+    else cc_fh = cc;
     // check second concentration in bounds
-   if (cc1 < 0.0) cc1_fh = 0.0001;
-    else if (cc1 > 1.0) cc1_fh = 0.999;
+    if (cc1 < 0.0) cc1_fh = 1e-6;
+    else if (cc1 > 1.0) cc1_fh = 0.999999;
     else cc1_fh = cc1;
     //check to see 1-cc_fh-cc1_fh isn't going past zero
-    double ss_fh = 1.0 - cc_fh - cc1_fh;
-    if (ss_fh >= 1.0) ss_fh = 0.999;
-    else if (ss_fh <= 0.0) ss_fh = 0.0001;
-   double FH_2 = 0.5 * (1.0/(N*cc_fh) + 1.0/(ss_fh));
-   return FH_2;	
+    ss_fh = 1.0 - cc_fh - cc1_fh;
+    if (ss_fh >= 1.0) ss_fh = 1.0;
+    else if (ss_fh <= 0.0) ss_fh = 1e-6;
+    double FH_2 = 0.5 * (1.0/(N*cc_fh) + 1.0/(ss_fh));
+    return FH_2;	
 }
 
 /*************************************************************
@@ -294,7 +297,7 @@ __device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu,
 	double cc_d = 1.0;
 	double rho = Mweight/Mvolume;
 	if (cc >= 1.0) cc_d = 1.0 * rho; // convert phi to g/L	
-	else if (cc < 0.0) cc_d = 0.0001 * rho; // convert phi to g/L 
+	else if (cc < 0.0) cc_d = 1e-6 * rho; // convert phi to g/L 
 	else cc_d = cc * rho; // convert phi to g/L
 	double Dp = D0 * exp(-gamma * pow(cc_d,nu));
 	return Dp;
@@ -349,7 +352,7 @@ __global__ void testLapNonUniformMob_NIPS(double* f, double *Mob, int nx, int ny
   * and store it in the device array df and wdf
   *******************************************************/
 
-__global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny, int nz, 
+__global__ void calculateLapBoundaries_NIPS(double* c, double* c1, double* df, double* df1, int nx, int ny, int nz, 
 													double h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
@@ -360,6 +363,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
     {
         int gid = nx*ny*idz + nx*idy + idx;
         df[gid] = laplacianUpdateBoundaries_NIPS(c,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        df1[gid] = laplacianUpdateBoundaries_NIPS(c1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
     }
 }
 
@@ -372,7 +376,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c,double* df, int nx, int ny
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,/*double*df1,*/double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,double*df1,double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -385,13 +389,12 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
         double cc1 = c1[gid];
         double ww = w[gid];
         double lap_c = df[gid];
-        // double lap_c1 = df1[gid];
+        double lap_c1 = df1[gid];
         // compute interaction parameter
         double chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
         // compute chemical potential
-        // df[gid] = freeEnergyBiFH_NIPS(cc,chi,N,lap_c,kap,A);
         df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,chiPP,N,lap_c,kap,A);
-        // df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,N,lap_c1,kap,A);
+        df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,chiPP,N,lap_c1,kap,A);
     }
 }
 
@@ -401,7 +404,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-__global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob, double M,double mobReSize, int nx, int ny, int nz, double phiCutoff, double N,double gamma, double nu, double D0, double Mweight, double Mvolume, double Tcast)
+__global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double* Mob1, double M,double M1,double mobReSize, int nx, int ny, int nz, double phiCutoff, double N,double gamma, double nu, double D0,double D01, double Mweight, double Mvolume, double Tcast)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -412,24 +415,34 @@ __global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob, double 
         double cc = c[gid];
         double cc1 = c1[gid];
         
-        if (cc < 0.0) cc = 0.0;
+        /*if (cc < 0.0) cc = 1e-6;
         else if (cc > 1.0) cc = 1.0;
+        if (cc1 < 0.0) cc = 1e-6;
+        else if (cc1 > 1.0) cc1 = 1.0;*/
         
         double d2FH = d2dc2_FH_NIPS(cc,cc1,N);
+        double d2FH_1 = d2dc2_FH_NIPS(cc1,cc,N);
         double D = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
+        double D1 = philliesDiffusion_NIPS(cc1,gamma,nu,D01,Mweight,Mvolume);
         double mobility = D/d2FH;
+        double mobility1 = D1/d2FH_1;
         //double mobility = M*cc*(1.0-cc);
         //if (cc < 0.0) cc = 0.0;
         //else if (cc > 1.0) cc = 1.0;
         
         if (mobility > 1.0) mobility = 1.0;     // making mobility max = 1
-        else if (mobility < 0.0) mobility = 0.001; // mobility min = 0.001
+        else if (mobility <= 0.0) mobility = 1e-6; // mobility min = 0.001
+        if (mobility1 > 1.0) mobility = 1.0;
+        else if (mobility1 <= 0) mobility1 = 1e-6;
+        // use constant mobility for debugging 
+        // TODO - find issues with weird numbers...
         Mob[gid] = mobility;
+        Mob1[gid] = mobility1;
     }
 }
 
 
-__global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutoff,int nx, int ny, int nz)
+__global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, double phiCutoff,int nx, int ny, int nz)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -439,7 +452,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutof
         int gid = nx*ny*idz + nx*idy + idx;
         double cc = c[gid];
         double cc1 = c1[gid];
-        if (cc + cc1 >= phiCutoff) Mob[gid] *= 0.001;
+        if (cc + cc1 >= phiCutoff) {Mob[gid] *= 1e-6; Mob1[gid] *= 1e-6;}
     }
 }
 
@@ -449,7 +462,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob, double phiCutof
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double* Mob,/*double* nonUniformLap,*/ /*double M, double M1,*/ double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1, double* df,double* df1, double* Mob, double*Mob1,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -460,18 +473,25 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c, double* df, double
         int gid = nx*ny*idz + nx*idy + idx;
         // compute chemical potential laplacain with non-uniform mobility
         // and user defined boundaries (no-flux or PBCs)
+        // not using this anymore... causing issues
         //nonUniformLap[gid] = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         //c[gid] += nonUniformLap[gid]*dt;
         
         // calculate non-uniform laplacian without nonUniform array/field (save memory)
         // do euler update
+        // commenting this out for debugging 
+        // TODO
         double nonUniformLap_c = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        double nonUniformLap_c1 = laplacianNonUniformMob_NIPS(df1,Mob1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         c[gid] += nonUniformLap_c*dt;
+        c1[gid] += nonUniformLap_c1*dt;
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
         //double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //c[gid] += M*lap_c*dt;
+        //double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //c[gid] += 1.0*lap_c*dt;
+        //c1[gid] += 1.0*lap_c1*dt;
     } 
 }
 
@@ -564,11 +584,11 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         double cS = 1.0 - cc -cc1;
         if (cS > 1.0) cS = 1.0;
         if (cS < 0.0) cS = 0.0;
-        double checkZero = cS + cc + cc1;
+        //double checkZero = cS + cc + cc1;
         // TODO does this remove the instability...
         // what value should we use here...
         // TODO remove this if its unnecessary
-        if (checkZero <= 0.0) checkZero = 1.0;
+        //if (checkZero <= 0.0) checkZero = 1.0;
         // calculate diffusion
         double Dweight = (W_S*cS + cc*W_P1 + cc1*W_P2)/*/(W_S + W_P1 + W_P2)*/;
         //if (Dweight < 0) Dweight = 0.001;
@@ -597,7 +617,8 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         // adding back in nonUniformLaplacian
         // TODO do we need the nonUniformLaplacian Kernel?
         //nonUniformLap[gid]= laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        w[gid] += nonUniformLap[gid]*dt;
+        //w[gid] += nonUniformLap[gid]*dt;
+        w[gid] += 20*df[gid]*dt;
     }
 }
 
@@ -621,8 +642,8 @@ __global__ void init_cuRAND_NIPS(unsigned long seed,curandState *state,int nx,in
 /************************************************************
   * Add random fluctuations for non-trivial solution (cuRand)
   ***********************************************************/
-__global__ void addNoise_NIPS(double *c,int nx, int ny, int nz, double dt, int current_step, 
-                         double water_CB,double phiCutoff,curandState *state)
+__global__ void addNoise_NIPS(double *c,double* c1,int nx, int ny, int nz, double dt, int current_step, 
+                         double water_CB,double phiCutoff,curandState *state,double noiseStr)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -634,11 +655,12 @@ __global__ void addNoise_NIPS(double *c,int nx, int ny, int nz, double dt, int c
         int gid = nx*ny*idz + nx*idy + idx;
         double noise = curand_uniform_double(&state[gid]);
         double cc = c[gid];
-        double noiseScale = 1.0;
+        double cc1 = c1[gid];
+        //double noiseScale = 1.0;
         // add random fluctuations with euler update
-        if (cc > phiCutoff) noise = 0.5; // no fluctuations for phi < 0
-        else if (cc <= 0.0) noise = 0.5;  // no fluctuations for phi > phiCutoff
-        c[gid] += 0.1*(noise-0.5)*dt*noiseScale;
+        if (cc + cc1 >= phiCutoff) noise = 0.5; // no fluctuations for phi < 0
+        else if (cc + cc1 <= 0.0) noise = 0.5;  // no fluctuations for phi > phiCutoff
+        c[gid] += noiseStr*(noise-0.5)*dt;
     }
 }
 

@@ -71,6 +71,7 @@ class PFNipsLayers : public CuesoBase {
         double * muNS_d;     // laplacian array for fickian diffusion
         double * cpyBuff_d; 			// Copy buffer for ansynchronous data transfer
         double * Mob_d;     			// mobility
+        double * Mob1_d;
         double * nonUniformLap_d;	    // laplacian of mobility and df
         curandState * devState;         // state for cuRAND
         unsigned long seed;             // seed for cuRAND
