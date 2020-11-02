@@ -62,9 +62,14 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     Tcast = input_params("PFNipsLayers/Tcast",298.0);
     noiseStr = input_params("PFNipsLayers/noiseStr",0.1);
     D0 = input_params("PFNipsLayers/D0",1.0);
+    D01 = input_params("PFNipsLayers/D01",1.0);
     Dw = input_params("PFNipsLayers/Dw",10.0);
     numOutputs = input_params("Output/numOutputs",1);
     outInterval = numSteps/numOutputs;
+    Mweight = input_params("PFNipsLayers/Mweight",1.0);
+    Mvolume = input_params("PFNipsLayers/Mvolume",1.0);
+    gamma = input_params("PFNipsLayers/gamma",1.0);
+    nu = input_params("PFNipsLayers/nu",1.0);
     // ---------------------------------------
     // Set up cuda kernel launch variables:
     // ---------------------------------------
@@ -112,6 +117,7 @@ PFNipsLayers::~PFNipsLayers()
     cudaFree(df_d);
     cudaFree(df1_d);
     cudaFree(Mob_d);
+    cudaFree(Mob1_d);
     cudaFree(w_d);
     cudaFree(muNS_d);
     cudaFree(nonUniformLap_d);
@@ -141,7 +147,7 @@ void PFNipsLayers::initSystem()
             water.push_back(water_CB);
             c.push_back(0.0);
             c1.push_back(0.0);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -151,7 +157,7 @@ void PFNipsLayers::initSystem()
             c.push_back(co + 0.1*(r-0.5));
             c1.push_back(0.0);
             water.push_back(NS_in_dope);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -161,7 +167,7 @@ void PFNipsLayers::initSystem()
             c.push_back(0.0);
             c1.push_back(co1 + 0.1*(r-0.5));
             water.push_back(NS_in_dope);
-            Mob.push_back(1.0);
+            //Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
@@ -197,9 +203,10 @@ void PFNipsLayers::initSystem()
     // allocate mobility
     cudaMalloc((void**) &Mob_d,size);
     cudaCheckErrors("cudaMalloc fail");
-    // allocate nonuniform laplacian for mobility 
-    // and water diffusion coefficient
-    // TODO remove nonUniformLap_d
+    // allocate mobility
+    cudaMalloc((void**) &Mob1_d,size);
+    cudaCheckErrors("CudaMalloc fail");
+    // allocate nonuniform laplacian for NS update
     cudaMalloc((void**) &nonUniformLap_d,size);
     cudaCheckErrors("cudaMalloc fail");
     // allocate memory for cuRAND state
@@ -212,8 +219,8 @@ void PFNipsLayers::initSystem()
     cudaCheckErrors("cudaMemcpy H2D fail");
     cudaMemcpy(w_d,&water[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
-    cudaMemcpy(Mob_d,&Mob[0],size,cudaMemcpyHostToDevice);
-    cudaCheckErrors("cudaMemcpy H2D fail");
+    /*cudaMemcpy(Mob_d,&Mob[0],size,cudaMemcpyHostToDevice);
+    cudaCheckErrors("cudaMemcpy H2D fail");*/
     
     // ----------------------------------------
     // Initialize thermal fluctuations of
@@ -250,54 +257,43 @@ void PFNipsLayers::computeInterval(int interval)
         // ------------------------
         
         // calculate the laplacian of c_d and store in df_d
-        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,nx,ny,nz,dx,bx,by,bz); 
+        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
-
         // calculate the laplacian of c1_d and store in df_d
-        calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
-        cudaCheckAsyncErrors("calculateLap polymer kernel fail");
-        cudaDeviceSynchronize();
+        //calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
+        //cudaCheckAsyncErrors("calculateLap polymer kernel fail");
+        //cudaDeviceSynchronize();
         
         // calculate the chemical potential for c and store in df_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,kap,A,chiPS,chiPN,chiPP,N,nx,ny,nz,current_step,dt);
+        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,df1_d,chiPP,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
-        
         // calculate the chemical potential for c1 and store in df1_d
-        calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,kap,A,chiPS,chiPN,chiPP,N,nx,ny,nz,current_step,dt);
-        cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
-        cudaDeviceSynchronize();
+        //calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c1_d,c_d,w_d,df1_d,chiPP,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
+        //cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
+        //cudaDeviceSynchronize();
         
         // calculate mobility for first polymer species and store it in Mob_d
-        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,Mob_d,M,mobReSize,nx,ny,nz,phiCutoff,N,/*gamma,nu,*/D0,/*Mweight,Mvolume,*/Tcast);
+        calculateMobility_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Mob1_d,M,M1,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,D01,Mweight,Mvolume,Tcast);
         cudaCheckAsyncErrors("calculateMobility kernel fail");
         cudaDeviceSynchronize();
-
-        vitrify_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,phiCutoff,nx,ny,nz);
+        // calculate mobility for second polymer species and store it in Mob1_d                                                               
+        //calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,c_d,Mob1_d,M1,mobReSize,nx,ny,nz,phiCutoff,N,gamma,nu,D0,Mweight,Mvolume,Tcast);    
+        //cudaCheckAsyncErrors("calculateMobility kernel fail");                                                                               
+        //cudaDeviceSynchronize();     
+       
+        // vitrify mobility for tob and bottom layer Mob and Mob1
+        vitrify_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Mob1_d,phiCutoff,nx,ny,nz);
         cudaCheckAsyncErrors("vitrify NIPS kernel fail");
         cudaDeviceSynchronize();
         
-        // calculate the laplacian of the chemical potential, then update c_d
+        // calculate the laplacian of the chemical potential, then update c_d and c1_d
         // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,df_d,Mob_d,/*M,M1,*/dt,nx,ny,nz,dx,bx,by,bz);
+        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,Mob_d,Mob1_d,M,M1,dt,nx,ny,nz,dx,bx,by,bz);
         cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
         cudaDeviceSynchronize();
         
-        // calculate mobility for second polymer species and store it in Mob_d
-        calculateMobility_NIPS<<<blocks,blockSize>>>(c1_d,Mob_d,M1,mobReSize,nx,ny,nz,phiCutoff,N,/*gamma,nu,*/D0,/*Mweight,Mvolume,*/Tcast);
-        cudaCheckAsyncErrors("calculateMobility kernel fail");
-        cudaDeviceSynchronize();
-        
-        vitrify_NIPS<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,phiCutoff,nx,ny,nz);
-        cudaCheckAsyncErrors("vitrify NIPS kernel fail");
-        cudaDeviceSynchronize();
-        
-        // calculate the laplacian of the chemical potential, then update c1_d
-        // using an Euler update
-        lapChemPotAndUpdateBoundaries_NIPS<<<blocks,blockSize>>>(c1_d,df1_d,Mob_d,/*M,M1,*/dt,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors("lapChemPotAndUpdateBoundaries kernel fail");
-        cudaDeviceSynchronize();
         
         // ------------------------------------------------
         // compute CH for c1.......is this needed??????
@@ -311,6 +307,7 @@ void PFNipsLayers::computeInterval(int interval)
         // 1 calculate mu for Nonsolvent diffusion
         // removed water diffusivity scaling and added to 
         // calculate_water_diffusion
+        // removing NS diffusion for debugging TODO
         calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,/*Mob_d,*/Dw,water_CB,/*gammaDw,nuDw,Mweight,Mvolume,*/nx,ny,nz);
         cudaCheckAsyncErrors('calculate muNS kernel fail');
         cudaDeviceSynchronize();
@@ -344,14 +341,14 @@ void PFNipsLayers::computeInterval(int interval)
         // ----------------------------
         
         // add thermal fluctuations of polymer concentration c
-        addNoise_NIPS<<<blocks,blockSize>>>(c_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
+        addNoise_NIPS<<<blocks,blockSize>>>(c_d, c1_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState,noiseStr);
         cudaCheckAsyncErrors("addNoise kernel fail");
         cudaDeviceSynchronize();
         
         // add thermal fluctuations of polymer concentration c1
-        addNoise_NIPS<<<blocks,blockSize>>>(c1_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState);
+        addNoise_NIPS<<<blocks,blockSize>>>(c1_d, c_d, nx, ny, nz, dt, current_step, water_CB, phiCutoff, devState,noiseStr);
         cudaCheckAsyncErrors("addNoise kernel fail");
-        cudaDeviceSynchronize(); 
+        cudaDeviceSynchronize();
         
     }
 
@@ -375,10 +372,10 @@ void PFNipsLayers::computeInterval(int interval)
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
     // mobility concentration
-    populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
+    /*populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
     cudaMemcpyAsync(&Mob[0],Mob_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize();*/
 }
 
 
@@ -437,7 +434,7 @@ void PFNipsLayers::writeOutput(int step)
             {
                 int id = nx*ny*k + nx*j + i;
                 double point = c[id];
-                //if (point < 1e-10) point = 0.0; // making really small numbers == 0 
+                if (point < 1e-10) point = 0.0; // making really small numbers == 0 
                 outfile << point << endl;
             }
 
@@ -481,7 +478,7 @@ void PFNipsLayers::writeOutput(int step)
             {
                 int id = nx*ny*k + nx*j + i;
                 double point = c1[id];
-                //if (point < 1e-10) point = 0.0; // making really small numbers == 0 
+                if (point < 1e-10) point = 0.0; // making really small numbers == 0 
                 outfile3 << point << endl;
             }
 
@@ -540,7 +537,7 @@ void PFNipsLayers::writeOutput(int step)
 
     outfile2.close();
     
-    filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
+    /*filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
     string filename4 = filenamecombine4.str();
     outfile4.open(filename4.c_str(), std::ios::out);
 
@@ -582,7 +579,7 @@ void PFNipsLayers::writeOutput(int step)
     //	Close the file:
     // -----------------------------------
 
-    outfile4.close();
+    outfile4.close();*/
     
     
 }
