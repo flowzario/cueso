@@ -70,6 +70,8 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     Mvolume = input_params("PFNipsLayers/Mvolume",1.0);
     gamma = input_params("PFNipsLayers/gamma",1.0);
     nu = input_params("PFNipsLayers/nu",1.0);
+    gammaDw = input_params("PFNipsLayers/gammaDw",1.0);
+    nuDw = input_params("PFNipsLayers/nuDw",1.0);
     // ---------------------------------------
     // Set up cuda kernel launch variables:
     // ---------------------------------------
@@ -144,6 +146,7 @@ void PFNipsLayers::initSystem()
     int zone2 = nx - zone1 - bathHeight;
     for(size_t i=0;i<nxyz;i++) {
         while (xHolder < bathHeight){
+            //r = (double)rand()/RAND_MAX;
             water.push_back(water_CB);
             c.push_back(0.0);
             c1.push_back(0.0);
@@ -212,6 +215,7 @@ void PFNipsLayers::initSystem()
     // allocate memory for cuRAND state
     cudaMalloc((void**) &devState,nxyz*sizeof(curandState));
     cudaCheckErrors("cudaMalloc fail");
+    
     // copy concentration and water array to device
     cudaMemcpy(c_d,&c[0],size,cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
@@ -318,7 +322,7 @@ void PFNipsLayers::computeInterval(int interval)
         cudaDeviceSynchronize();
         
         // - calcualte diffusion of water based on local polymer concentration
-        calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,nx,ny,nz);
+        calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
         cudaCheckAsyncErrors('calculate water diffusivity fail');
         cudaDeviceSynchronize();
         

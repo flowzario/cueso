@@ -32,7 +32,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, do
 
 __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, /*double* Mob,*/ double Dw, double water_CB, int nx, int ny, int nz);
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_N, double W_P1, double W_P2,int nx, int ny, int nz);
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_N, double W_P1, double W_P2,double gammaDw,double nuDw,double Mweight,double Mvolume,int nx, int ny, int nz);
 
 __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
 
