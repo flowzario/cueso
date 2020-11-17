@@ -564,7 +564,7 @@ __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double*
     }
 }
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_S,double W_P1,double W_P2,int nx, int ny, int nz)
+__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_S,double W_P1,double W_P2,double gammaDw,double nuDw,double Mweight,double Mvolume,int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -577,30 +577,32 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
         double cc1 = c1[gid];
         // check top layer 
         if (cc > 1.0) cc = 1.0;
-        if (cc < 0.0) cc = 0.0;
+        if (cc <= 0.0) cc = 0.0;
         // check bottom layer
         if (cc1 > 1.0) cc1 = 1.0;
-        if (cc1 < 0.0) cc1 = 0.0;
-        // calculate solvent concentratio
-        double cS = 1.0 - cc -cc1;
-        if (cS > 1.0) cS = 1.0;
-        if (cS < 0.0) cS = 0.0;
-        //double checkZero = cS + cc + cc1;
-        // TODO does this remove the instability...
-        // what value should we use here...
-        // TODO remove this if its unnecessary
-        //if (checkZero <= 0.0) checkZero = 1.0;
+        if (cc1 <= 0.0) cc1 = 0.0;
+        
+        // calculate solvent concentration
+        // should we use this going forward
+        //double cS = 1.0 - cc -cc1;
+        //if (cS > 1.0) cS = 1.0;
+        //if (cS <= 0.0) cS = 1e-6;
+
+        
+        // TODO figure out instability when using Dweight with Phillies
+        // TODO does using c^3/2 have better results?
         // calculate diffusion
-        double Dweight = (W_S*cS + cc*W_P1 + cc1*W_P2)/*/(W_S + W_P1 + W_P2)*/;
-        if (Dweight <= 0) Dweight = 0.001;
-        // TODO why does this work.... and the others dont
-        //double dw = Dw*Dweight;
-        // TODO is this rational?
-        // the below isn't necessary
-        // see if instability improves
-        //if (Dweight > Dw) Dweight = Dw;
-        //if (Dweight < 0.0) Dweight = 0.1;
-        Mob[gid] = Dweight;
+        // double Dweight= W_S*cS + cc*W_P1 + cc1*W_P2);
+        //if (Dweight <= 0) Dweight = 0.001;
+        //if (Dweight >= W_S) Dweight = W_S;
+        
+        // add phillies method
+        double c_combined = cc+cc1;
+        double Dphil_c = philliesDiffusion_NIPS(cc, gammaDw, nuDw, W_P1, Mweight, Mvolume);
+        double Dphil_c2 = philliesDiffusion_NIPS(cc1,gammaDw, nuDw, W_P2, Mweight, Mvolume);
+        //if (Dphil_c <= 0.0) Dphil = 0.001;
+        double D_combined = Dphil_c + Dphil_c2;
+        Mob[gid] = D_combined;/*Dphil;*/
     }
 }
 
@@ -658,10 +660,9 @@ __global__ void addNoise_NIPS(double *c,double* c1,int nx, int ny, int nz, doubl
         double noise = curand_uniform_double(&state[gid]);
         double cc = c[gid];
         double cc1 = c1[gid];
-        //double noiseScale = 1.0;
         // add random fluctuations with euler update
-        if (cc + cc1 >= phiCutoff) noise = 0.5; // no fluctuations for phi < 0
-        else if (cc + cc1 <= 0.0) noise = 0.5;  // no fluctuations for phi > phiCutoff
+        if (cc + cc1 >= phiCutoff) noise = 0.5; // no fluctuations for phi >= cutoff
+        else if (cc + cc1 <= 0.0) noise = 0.5;  // no fluctuations for phi <= 0
         c[gid] += noiseStr*(noise-0.5)*dt;
     }
 }

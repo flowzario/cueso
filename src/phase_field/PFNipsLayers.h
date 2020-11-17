@@ -52,6 +52,8 @@ class PFNipsLayers : public CuesoBase {
         double Dw;
         double gamma;
         double nu;
+        double gammaDw;
+        double nuDw;
         double Mweight;
         double Mvolume;
         bool bx,by,bz;
