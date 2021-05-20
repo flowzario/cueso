@@ -13,48 +13,49 @@
 // kernel for evolving c-field using finite difference to solve
 // the Cahn-Hilliard equation
 
-__global__ void calculateLapBoundaries_NIPS(double* c,double* c1, double* df, double* df1, int nx, int ny, int nz, 
-								       double h, bool bX, bool bY, bool bZ);
+__global__ void calculateLapBoundaries_NIPS(float* c,float* c1, float* df, float* df1, int nx, int ny, int nz, 
+								       float h, bool bX, bool bY, bool bZ);
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1, double* w,double* df,double* df1,double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt);
+__global__ void calculateChemPotFH_NIPS(float* c,float* c1, float* w, float* df,float* df1,float chiPP, float kap, float A, float chiPS, float chiPN, float N, int nx, int ny, int nz, int current_step, float dt);
 
 
-__global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double* Mob1, double M,double M1,double mobReSize,int nx,int ny,int nz,
-double phiCutoff, double N,double gamma,double nu,double D0,double D01,double Mweight, double Mvolume,double Tcast);
+__global__ void calculateMobility_NIPS(float* c,float* c1,float* Mob,float* Mob1, float M,float M1,float mobReSize,int nx,int ny,int nz,
+float phiCutoff, float N,float gamma,float nu,float D0,float D01,float Mweight, float Mvolume,float Tcast);
 
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1,double* df,double* df1,double* Mob,double* Mob1, double M, double M1, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(float* c,float* c1,float* df,float* df1,float* Mob,float* Mob1, float M, float M1, float dt, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ);
 
-__global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, double phiCutoff, int nx, int ny, int nz);
+__global__ void vitrify_NIPS(float* c,float* c1,float* Mob,float* Mob1, float phiCutoff, int nx, int ny, int nz);
  
 // kernel for evolving water field using Fick's 2nd law...
 
-__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, /*double* Mob,*/ double Dw, double water_CB, int nx, int ny, int nz);
+__global__ void calculate_muNS_NIPS(float*w, float*c,float*c1, float* muNS, /*float* Mob,*/ float Dw, float water_CB, int nx, int ny, int nz);
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_N, double W_P1, double W_P2,double gammaDw,double nuDw,double Mweight,double Mvolume,int nx, int ny, int nz);
+__global__ void calculate_water_diffusion(int zone1,int zone2,int bathHeight,float*c,float*c1,float*Mob,float Dw,float W_N, float W_P1, float W_P2,float gammaDw,float nuDw,float Mweight,float Mvolume,int nx, int ny, int nz);
 
-__global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void calculateLapBoundaries_muNS_NIPS(float* df, float* muNS, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ);
 
-__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(float* muNS, float* Mob,float* nonUniformLap, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ);
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, double* nonUniformLap,double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ);
+__global__ void update_water_NIPS(float* w,float* df, float* Mob, float* nonUniformLap,float Dw, float dt, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ);
 
 __global__ void init_cuRAND_NIPS(unsigned long seed, curandState* state,int nx, int ny, int nz);
 
 
-__global__ void addNoise_NIPS(double* c,double* c1, int nx, int ny, int nz, double dt, int current_step,
-                         double water_CB,double phiCutoff, curandState * state,double noiseStr);
+__global__ void addNoise_NIPS(float* c,float* c1, int nx, int ny, int nz, float dt, int current_step,
+                         float water_CB,float phiCutoff, curandState * state,float noiseStr);
 
-__global__ void populateCopyBuffer_NIPS(double* c, double* cpyBuff, int nx, int ny, int nz);
+__global__ void populateCopyBuffer_NIPS(float* c, float* cpyBuff, int nx, int ny, int nz);
 
 
 // kernel for testing the laplacian function
-__global__ void testLap_NIPS(double* f, int nx, int ny, int nz, double h, 
+// changed doubles to floats...
+__global__ void testLap_NIPS(float* f, int nx, int ny, int nz, float h, 
 				            bool bX, bool bY, bool bZ);
 
 
-__global__ void testNonUniformMob_NIPS(double *f, double* b,int gid, int nx, int ny, int nz, double h,
+__global__ void testNonUniformMob_NIPS(float *f, float* b,int gid, int nx, int ny, int nz, float h,
 								  bool bX, bool bY, bool bZ);
 
 #endif /* !PFNIPSLAYERSKERNELS_H */

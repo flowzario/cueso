@@ -23,8 +23,8 @@
    * for Cahn-Hilliard Euler update
    ********************************************************/
 
-__device__ double laplacianNonUniformMob_NIPS(double *f, double *Mob,int gid, int x, int y, int z,
-                                         int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__device__ float laplacianNonUniformMob_NIPS(float *f, float *Mob,int gid, int x, int y, int z,
+                                         int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
 	// get id of neighbors for no-flux and PBCs
    int xlid,xrid,ylid,yrid,zlid,zrid;
@@ -85,33 +85,33 @@ __device__ double laplacianNonUniformMob_NIPS(double *f, double *Mob,int gid, in
 	// ------------------------------------------
 	
     // get values of neighbors for mobility
-    double mobXl = Mob[xlid];
-    double mobXr = Mob[xrid];
-    double mobYl = Mob[ylid];
-    double mobYr = Mob[yrid];
-    double mobZl = Mob[zlid];
-    double mobZr = Mob[zrid];
+    float mobXl = Mob[xlid];
+    float mobXr = Mob[xrid];
+    float mobYl = Mob[ylid];
+    float mobYr = Mob[yrid];
+    float mobZl = Mob[zlid];
+    float mobZr = Mob[zrid];
     // get values of neighbors for mu
-    double xl = f[xlid];
-    double xr = f[xrid];
-    double yl = f[ylid];
-    double yr = f[yrid];
-    double zl = f[zlid];
-    double zr = f[zrid];
+    float xl = f[xlid];
+    float xr = f[xrid];
+    float yl = f[ylid];
+    float yr = f[yrid];
+    float zl = f[zlid];
+    float zr = f[zrid];
     // get value of current points
-    double bo = Mob[gid];
-    double fo = f[gid];
+    float bo = Mob[gid];
+    float fo = f[gid];
     // begin laplacian
-    double bx1 = 2.0/(1.0/mobXl + 1.0/bo);
-    double bx2 = 2.0/(1.0/mobXr + 1.0/bo);
-    double by1 = 2.0/(1.0/mobYl + 1.0/bo);
-    double by2 = 2.0/(1.0/mobYr + 1.0/bo);
-    double bz1 = 2.0/(1.0/mobZl + 1.0/bo);
-    double bz2 = 2.0/(1.0/mobZr + 1.0/bo);
-    double lapx = (xl*bx1 + xr*bx2 - (bx1+bx2)*fo)/(h*h); 
-    double lapy = (yl*by1 + yr*by2 - (by1+by2)*fo)/(h*h);
-    double lapz = (zl*bz1 + zr*bz2 - (bz1+bz2)*fo)/(h*h);
-    double lapNonUniform = lapx + lapy + lapz;
+    float bx1 = 2.0/(1.0/mobXl + 1.0/bo);
+    float bx2 = 2.0/(1.0/mobXr + 1.0/bo);
+    float by1 = 2.0/(1.0/mobYl + 1.0/bo);
+    float by2 = 2.0/(1.0/mobYr + 1.0/bo);
+    float bz1 = 2.0/(1.0/mobZl + 1.0/bo);
+    float bz2 = 2.0/(1.0/mobZr + 1.0/bo);
+    float lapx = (xl*bx1 + xr*bx2 - (bx1+bx2)*fo)/(h*h); 
+    float lapy = (yl*by1 + yr*by2 - (by1+by2)*fo)/(h*h);
+    float lapz = (zl*bz1 + zr*bz2 - (bz1+bz2)*fo)/(h*h);
+    float lapNonUniform = lapx + lapy + lapz;
     return lapNonUniform;
 }   
    
@@ -121,8 +121,8 @@ __device__ double laplacianNonUniformMob_NIPS(double *f, double *Mob,int gid, in
    * boundary conditions (UpdateBoundaries)
    ******************************************************/
 	
-__device__ double laplacianUpdateBoundaries_NIPS(double* f,int gid, int x, int y, int z, 
-								            int nx, int ny, int nz, double h, 
+__device__ float laplacianUpdateBoundaries_NIPS(float* f,int gid, int x, int y, int z, 
+								            int nx, int ny, int nz, float h, 
 								            bool bX, bool bY, bool bZ)
 {
     // get id of neighbors with periodic boundary conditions
@@ -180,24 +180,101 @@ __device__ double laplacianUpdateBoundaries_NIPS(double* f,int gid, int x, int y
     	else zrid = nx*ny*(z+1) + nx*y + x;
 	}
     // get values of neighbors
-    double xl = f[xlid];
-    double xr = f[xrid];
-    double yl = f[ylid];
-    double yr = f[yrid];
-    double zl = f[zlid];
-    double zr = f[zrid];
-    double lap = (xl+xr+yl+yr+zl+zr-6.0*f[gid])/(h*h);
+    float xl = f[xlid];
+    float xr = f[xrid];
+    float yl = f[ylid];
+    float yr = f[yrid];
+    float zl = f[zlid];
+    float zr = f[zrid];
+    float lap = (xl+xr+yl+yr+zl+zr-6.0*f[gid])/(h*h);
     return lap;
 }
+
+
+/*********************************************************
+   * Compute nabla with user specified 
+   * boundary conditions (UpdateBoundaries)
+   * TODO IS THIS NEEDED?
+   ******************************************************/
+	
+/*__device__ float nablaUpdateBoundaries_NIPS(float* f,int gid, int x, int y, int z, 
+								            int nx, int ny, int nz, float h, 
+								            bool bX, bool bY, bool bZ)
+{
+    // get id of neighbors with periodic boundary conditions
+    // and no-flux conditions
+    int xlid,xrid,ylid,yrid,zlid,zrid;
+    // -----------------------------------
+    // X-Direction Boundaries
+    // -----------------------------------
+    if (bX) {
+        // PBCs (x-dir.)
+        if(x == 0) xlid = nx*ny*z + nx*y + nx-1;
+        else xlid = nx*ny*z + nx*y + x-1;
+        if(x == nx-1) xrid = nx*ny*z + nx*y + 0;
+        else xrid = nx*ny*z + nx*y + x+1;
+    }
+    else {
+        // no-flux BC (x-dir.)
+		if (x == 0) xlid = nx*ny*z + nx*y + x;
+		else xlid = nx*ny*z + nx*y + x-1;
+		if (x == nx-1) xrid = nx*ny*z + nx*y + x;
+		else xrid = nx*ny*z + nx*y + x+1;
+    }
+    // -----------------------------------
+    // Y-Direction Boundaries
+    // -----------------------------------
+	if (bY) {
+        // PBC Apply
+        if(y == 0) ylid = nx*ny*z + nx*(ny-1) + x;
+    	else ylid = nx*ny*z + nx*(y-1) + x;
+    	if(y == ny-1) yrid = nx*ny*z + nx*0 + x;
+    	else yrid = nx*ny*z + nx*(y+1) + x;
+    }
+    else {
+   	// no-flux BC (y-dir.)
+        if(y == 0) ylid = nx*ny*z + nx*y + x;
+    	else ylid = nx*ny*z + nx*(y-1) + x;
+    	if(y == ny-1) yrid = nx*ny*z + nx*y + x;
+    	else yrid = nx*ny*z + nx*(y+1) + x;
+    }
+    // -----------------------------------
+    // Z-Direction Boundaries
+    // -----------------------------------
+	if (bZ) {
+		// PBC Apply (z-dir.)
+   	if(z == 0) zlid = nx*ny*(nz-1) + nx*y + x;
+    	else zlid = nx*ny*(z-1) + nx*y + x;
+    	if(z == nz-1) zrid = nx*ny*0 + nx*y + x;
+    	else zrid = nx*ny*(z+1) + nx*y + x;
+    }
+	else {
+		// no-flux BC (z-dir.)
+		if(z == 0) zlid = nx*ny*z + nx*y + x;
+    	else zlid = nx*ny*(z-1) + nx*y + x;
+    	if(z == nz-1) zrid = nx*ny*z + nx*y + x;
+    	else zrid = nx*ny*(z+1) + nx*y + x;
+	}
+    // get values of neighbors
+    float xl = f[xlid];
+    float xr = f[xrid];
+    float yl = f[ylid];
+    float yr = f[yrid];
+    float zl = f[zlid];
+    float zr = f[zrid];
+    float nab = (xr+yr+zr-xl-yl-zl)/(2*h);
+    return nab;
+}
+*/
 
 
 /*************************************************************
   * compute chi with linear weighted average
   ***********************************************************/
 
-__device__ double chiDiffuse_NIPS(double locWater, double chiPS, double chiPN)
+__device__ float chiDiffuse_NIPS(float locWater, float chiPS, float chiPN)
 {
-    double chi = chiPN*locWater + chiPS*(1.0-locWater);
+    float chi = chiPN*locWater + chiPS*(1.0-locWater);
 	return chi;
 }
 
@@ -215,24 +292,24 @@ __device__ double chiDiffuse_NIPS(double locWater, double chiPS, double chiPN)
 	*
 	***********************************************************/
 
-/*__device__ double freeEnergyBiFH_NIPS(double cc, double chi, double N, double lap_c, double kap, double A)
+/*__device__ float freeEnergyBiFH_NIPS(float cc, float chi, float N, float lap_c, float kap, float A)
 {
-   double c_fh = 0.0;
+   float c_fh = 0.0;
    if (cc < 0.0) c_fh = 0.0001;
    else if (cc > 1.0) c_fh = 0.999;
    else c_fh = cc;
-   double FH = (log(c_fh) + 1.0)/N - log(1.0-c_fh) - 1.0 + chi*(1.0-2.0*c_fh) - kap*lap_c;
+   float FH = (log(c_fh) + 1.0)/N - log(1.0-c_fh) - 1.0 + chi*(1.0-2.0*c_fh) - kap*lap_c;
    if (cc <= 0.0) FH = -1.5*A*sqrt(-cc) - kap*lap_c;   
    return FH;
 }*/
 
 
-__device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, double chiPP, double N, double lap_c, double kap, double A)
+__device__ float freeEnergyTernaryFH_NIPS(float cc, float cc1, float chi, float chiPP, float N, float lap_c, float kap, float A)
 {
     // make sure everythin is in the range of 0-1
-    double cc_fh = 0.0;
-    double cc1_fh = 0.0;
-    double n_fh = 0.0;
+    float cc_fh = 0.0;
+    float cc1_fh = 0.0;
+    float n_fh = 0.0;
     if (cc <= 0.0) cc_fh = 1e-6;
     else if (cc >= 1.0) cc_fh = 1.0;
     else cc_fh = cc;
@@ -247,11 +324,11 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
     // with our substitution (1.0-c-c1) for c_N
     // remove the 0.5... not sure why doug tree had that in his work...
     // here we use chiP1-S = chiP2-S
-    //double FH = (chiPP*cc1_fh - 2.0*chi*cc_fh - 2.0*chi*cc1_fh + chi) + (log(cc_fh)+1.0)/N - log(n_fh) -1;
-    double FH = (log(cc_fh)+1.0)/N - log(n_fh) - 1.0 + chiPP*cc1_fh - chi*(2.0*cc_fh + 2.0*cc1_fh - 1.0); 
+    //float FH = (chiPP*cc1_fh - 2.0*chi*cc_fh - 2.0*chi*cc1_fh + chi) + (log(cc_fh)+1.0)/N - log(n_fh) -1;
+    float FH = (log(cc_fh)+1.0)/N - log(n_fh) - 1.0 + chiPP*cc1_fh - chi*(2.0*cc_fh + 2.0*cc1_fh - 1.0); 
     
     // without the substitution (1-c-c1) for c_n
-    //double FH = 0.5*chiPP*cc1 + 0.5*chi*n_fh + log(cc)/N + 1.0/N;
+    //float FH = 0.5*chiPP*cc1 + 0.5*chi*n_fh + log(cc)/N + 1.0/N;
     // subtract kap*lap_c for CH
     FH -= kap*lap_c;
     // if our values go over 1 or less than 0, push back toward [0,1]
@@ -265,12 +342,12 @@ __device__ double freeEnergyTernaryFH_NIPS(double cc, double cc1, double chi, do
   * using the ternary FH expression
   ***********************************************************/
   
-__device__ double d2dc2_FH_NIPS(double cc, double cc1, double N)
+__device__ float d2dc2_FH_NIPS(float cc, float cc1, float N)
 {
    
-    double cc_fh = 0.0;
-    double cc1_fh = 0.0;
-    double ss_fh = 0.0;
+    float cc_fh = 0.0;
+    float cc1_fh = 0.0;
+    float ss_fh = 0.0;
     // check first concentration in bounds
     if (cc < 0.0) cc_fh = 1e-6;
     else if (cc > 1.0) cc_fh = 0.999999;
@@ -283,7 +360,7 @@ __device__ double d2dc2_FH_NIPS(double cc, double cc1, double N)
     ss_fh = 1.0 - cc_fh - cc1_fh;
     if (ss_fh >= 1.0) ss_fh = 1.0;
     else if (ss_fh <= 0.0) ss_fh = 1e-6;
-    double FH_2 = 0.5 * (1.0/(N*cc_fh) + 1.0/(ss_fh));
+    float FH_2 = 0.5 * (1.0/(N*cc_fh) + 1.0/(ss_fh));
     return FH_2;	
 }
 
@@ -291,15 +368,15 @@ __device__ double d2dc2_FH_NIPS(double cc, double cc1, double N)
   * Compute diffusion coefficient via phillies eq.
   ***********************************************************/
 
-__device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu, 
-								    double D0, double Mweight, double Mvolume)
+__device__ float philliesDiffusion_NIPS(float cc, float gamma, float nu, 
+								    float D0, float Mweight, float Mvolume)
 {
-	double cc_d = 1.0;
-	double rho = Mweight/Mvolume;
+	float cc_d = 1.0;
+	float rho = Mweight/Mvolume;
 	if (cc >= 1.0) cc_d = 1.0 * rho; // convert phi to g/L	
 	else if (cc < 0.0) cc_d = 1e-6 * rho; // convert phi to g/L 
 	else cc_d = cc * rho; // convert phi to g/L
-	double Dp = D0 * exp(-gamma * pow(cc_d,nu));
+	float Dp = D0 * exp(-gamma * pow(cc_d,nu));
 	return Dp;
 }
 
@@ -313,7 +390,7 @@ __device__ double philliesDiffusion_NIPS(double cc, double gamma, double nu,
   * Kernels for unit testing the laplacian devices 
   ***************************************************************/
 
-__global__ void testLap_NIPS(double* f, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void testLap_NIPS(float* f, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -326,7 +403,7 @@ __global__ void testLap_NIPS(double* f, int nx, int ny, int nz, double h, bool b
     }
 }
 
-__global__ void testLapNonUniformMob_NIPS(double* f, double *Mob, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void testLapNonUniformMob_NIPS(float* f, float *Mob, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -352,8 +429,8 @@ __global__ void testLapNonUniformMob_NIPS(double* f, double *Mob, int nx, int ny
   * and store it in the device array df and wdf
   *******************************************************/
 
-__global__ void calculateLapBoundaries_NIPS(double* c, double* c1, double* df, double* df1, int nx, int ny, int nz, 
-													double h, bool bX, bool bY, bool bZ)
+__global__ void calculateLapBoundaries_NIPS(float* c, float* c1, float* df, float* df1, int nx, int ny, int nz, 
+													float h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -376,7 +453,7 @@ __global__ void calculateLapBoundaries_NIPS(double* c, double* c1, double* df, d
   *******************************************************/
 
 
-__global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* df,double*df1,double chiPP, double kap, double A, double chiPS, double chiPN, double N, int nx, int ny, int nz, int current_step, double dt)
+__global__ void calculateChemPotFH_NIPS(float* c,float* c1,float* w,float* df,float*df1,float chiPP, float kap, float A, float chiPS, float chiPN, float N, int nx, int ny, int nz, int current_step, float dt)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -385,13 +462,13 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
     if (idx<nx && idy<ny && idz<nz)
     {
         int gid = nx*ny*idz + nx*idy + idx;
-        double cc = c[gid];
-        double cc1 = c1[gid];
-        double ww = w[gid];
-        double lap_c = df[gid];
-        double lap_c1 = df1[gid];
+        float cc = c[gid];
+        float cc1 = c1[gid];
+        float ww = w[gid];
+        float lap_c = df[gid];
+        float lap_c1 = df1[gid];
         // compute interaction parameter
-        double chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
+        float chi = chiDiffuse_NIPS(ww,chiPS,chiPN);
         // compute chemical potential
         df[gid] = freeEnergyTernaryFH_NIPS(cc,cc1,chi,chiPP,N,lap_c,kap,A);
         df1[gid] = freeEnergyTernaryFH_NIPS(cc1,cc,chi,chiPP,N,lap_c1,kap,A);
@@ -404,7 +481,7 @@ __global__ void calculateChemPotFH_NIPS(double* c,double* c1,double* w,double* d
   * parameter and stores it in the Mob_d array.
   *******************************************************/
   
-__global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double* Mob1, double M,double M1,double mobReSize, int nx, int ny, int nz, double phiCutoff, double N,double gamma, double nu, double D0,double D01, double Mweight, double Mvolume, double Tcast)
+__global__ void calculateMobility_NIPS(float* c,float* c1,float* Mob,float* Mob1, float M,float M1,float mobReSize, int nx, int ny, int nz, float phiCutoff, float N,float gamma, float nu, float D0,float D01, float Mweight, float Mvolume, float Tcast)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -412,21 +489,21 @@ __global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double* 
     if (idx<nx && idy<ny && idz<nz)
     {
         int gid = nx*ny*idz + nx*idy + idx;
-        double cc = c[gid];
-        double cc1 = c1[gid];
+        float cc = c[gid];
+        float cc1 = c1[gid];
         
         /*if (cc < 0.0) cc = 1e-6;
         else if (cc > 1.0) cc = 1.0;
         if (cc1 < 0.0) cc = 1e-6;
         else if (cc1 > 1.0) cc1 = 1.0;*/
         
-        double d2FH = d2dc2_FH_NIPS(cc,cc1,N);
-        double d2FH_1 = d2dc2_FH_NIPS(cc1,cc,N);
-        double D = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
-        double D1 = philliesDiffusion_NIPS(cc1,gamma,nu,D01,Mweight,Mvolume);
-        double mobility = D/d2FH;
-        double mobility1 = D1/d2FH_1;
-        //double mobility = M*cc*(1.0-cc);
+        float d2FH = d2dc2_FH_NIPS(cc,cc1,N);
+        float d2FH_1 = d2dc2_FH_NIPS(cc1,cc,N);
+        float D = philliesDiffusion_NIPS(cc,gamma,nu,D0,Mweight,Mvolume);
+        float D1 = philliesDiffusion_NIPS(cc1,gamma,nu,D01,Mweight,Mvolume);
+        float mobility = D/d2FH;
+        float mobility1 = D1/d2FH_1;
+        //float mobility = M*cc*(1.0-cc);
         //if (cc < 0.0) cc = 0.0;
         //else if (cc > 1.0) cc = 1.0;
         
@@ -442,7 +519,7 @@ __global__ void calculateMobility_NIPS(double* c,double* c1,double* Mob,double* 
 }
 
 
-__global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, double phiCutoff,int nx, int ny, int nz)
+__global__ void vitrify_NIPS(float* c, float* c1, float* Mob,float* Mob1, float phiCutoff,int nx, int ny, int nz)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -450,8 +527,8 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, do
     if (idx<nx && idy<ny && idz<nz)
     {
         int gid = nx*ny*idz + nx*idy + idx;
-        double cc = c[gid];
-        double cc1 = c1[gid];
+        float cc = c[gid];
+        float cc1 = c1[gid];
         if (cc + cc1 >= phiCutoff) {Mob[gid] *= 1e-6; Mob1[gid] *= 1e-6;}
     }
 }
@@ -463,7 +540,7 @@ __global__ void vitrify_NIPS(double* c, double* c1, double* Mob,double* Mob1, do
   * to perform an Euler update of the concentration in time.
   ***********************************************************************************/
 
-__global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1, double* df,double* df1, double* Mob, double*Mob1,/*double* nonUniformLap,*/ double M, double M1, double dt, int nx, int ny, int nz, double h,bool bX, bool bY, bool bZ)
+__global__ void lapChemPotAndUpdateBoundaries_NIPS(float* c,float* c1, float* df,float* df1, float* Mob, float*Mob1,/*float* nonUniformLap,*/ float M, float M1, float dt, int nx, int ny, int nz, float h,bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -482,15 +559,15 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1, double*
         // do euler update
         // commenting this out for debugging 
         // TODO
-        double nonUniformLap_c = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        double nonUniformLap_c1 = laplacianNonUniformMob_NIPS(df1,Mob1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        float nonUniformLap_c = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        float nonUniformLap_c1 = laplacianNonUniformMob_NIPS(df1,Mob1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         c[gid] += nonUniformLap_c*dt;
         c1[gid] += nonUniformLap_c1*dt;
         
         // compute laplacian of chemical potential and update with constant mobility
         // compute laplacian and do euler update
-        //double lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //double lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //float lap_c = laplacianUpdateBoundaries_NIPS(df,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //float lap_c1 = laplacianUpdateBoundaries_NIPS(df1,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         //c[gid] += 1.0*lap_c*dt;
         //c1[gid] += 1.0*lap_c1*dt;
     } 
@@ -498,7 +575,7 @@ __global__ void lapChemPotAndUpdateBoundaries_NIPS(double* c,double* c1, double*
 
 
 
-__global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, /*double* Mob,*/ double Dw, double water_CB, int nx, int ny, int nz)
+__global__ void calculate_muNS_NIPS(float*w, float*c,float*c1, float* muNS, /*float* Mob,*/ float Dw, float water_CB, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -511,22 +588,22 @@ __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, 
         // calculate mu for NonSolvent NS diffusion
         // make x = 0 coagulation bath composition
         if (idx == 0) w[gid] = water_CB;
-        double ww = w[gid];
+        float ww = w[gid];
         // assign muNS for calculating laplacian
         muNS[gid] =  ww;
         
         // now assign diffusion to mobility array
         // check that polymer < 1.0 and greater than 0.0
-        /*double cc = c[gid];
+        /*float cc = c[gid];
         if (cc < 0.0) cc = 0.0;
         else if (cc > 1.0) cc = 1.0;
-        double cc1 = c1[gid];
+        float cc1 = c1[gid];
         if (cc1 < 0.0) cc1 = 0.0;
         else if (cc1 > 1.0) cc1 = 1.0;
-        double cN = 1.0 - cc - cc1;
+        float cN = 1.0 - cc - cc1;
         if (cN < 0.0) cN = 0.0;
         else if (cN > 1.0) cN = 1.0;
-        double D_N = 1.0*cN - 0.5*cc - 0.5*cc1;
+        float D_N = 1.0*cN - 0.5*cc - 0.5*cc1;
         // assign mobility to D_NS
         Mob[gid] = D_N;
         if (D_N < 0.0) Mob[gid] = 0.0;
@@ -537,7 +614,11 @@ __global__ void calculate_muNS_NIPS(double*w, double*c,double*c1, double* muNS, 
 
 
 
-__global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+/********************************************
+* Use this for constant NS diffusion
+*
+/********************************************/
+__global__ void calculateLapBoundaries_muNS_NIPS(float* df, float* muNS, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -550,9 +631,9 @@ __global__ void calculateLapBoundaries_muNS_NIPS(double* df, double* muNS, int n
     }
 }
 
-// TODO is this function necessary...
-// check later... first run some simulations
-__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double* Mob,double* nonUniformLap, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+
+
+__global__ void calculateNonUniformLapBoundaries_muNS_NIPS(float* muNS, float* Mob,float* nonUniformLap, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
     int idy = blockIdx.y*blockDim.y + threadIdx.y;
@@ -564,7 +645,9 @@ __global__ void calculateNonUniformLapBoundaries_muNS_NIPS(double* muNS, double*
     }
 }
 
-__global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double Dw,double W_S,double W_P1,double W_P2,double gammaDw,double nuDw,double Mweight,double Mvolume,int nx, int ny, int nz)
+
+// TODO add depth checks for water layer, 1st layer, and second layer
+__global__ void calculate_water_diffusion(int zone1, int zone2, int bathHeight,float*c,float*c1,float*Mob,float Dw,float W_S,float W_P1,float W_P2,float gammaDw,float nuDw,float Mweight,float Mvolume,int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -572,41 +655,41 @@ __global__ void calculate_water_diffusion(double*c,double*c1,double*Mob,double D
     int idz = blockIdx.z*blockDim.z + threadIdx.z;
     if (idx<nx && idy<ny && idz<nz)
     {
-        int gid = nx*ny*idz + nx*idy + idx;
-        double cc = c[gid];
-        double cc1 = c1[gid];
-        // check top layer 
-        if (cc > 1.0) cc = 1.0;
-        if (cc <= 0.0) cc = 0.0;
-        // check bottom layer
-        if (cc1 > 1.0) cc1 = 1.0;
-        if (cc1 <= 0.0) cc1 = 0.0;
+        // currently don't need polymer concentration
         
-        // calculate solvent concentration
-        // should we use this going forward
-        //double cS = 1.0 - cc -cc1;
-        //if (cS > 1.0) cS = 1.0;
-        //if (cS <= 0.0) cS = 1e-6;
+        int gid = nx*ny*idz + nx*idy + idx;
+    
+        float cc = c[gid];
+        float cc1 = c1[gid];
+        // check top layer 
+        // TODO these may not be necessary...
+        // float check if they still are
+        if (cc > 1.0) cc = 0.99999;
+        if (cc <= 0.0) cc = 1e-5;
+        // check bottom layer
+        if (cc1 > 1.0) cc1 = 0.99999;
+        if (cc1 <= 0.0) cc1 = 1e-5;
+        
+        float Dw = 1.0;
+        if (idx < bathHeight) Dw = W_S;
+        else if (idx >= bathHeight && idx < (bathHeight+zone1)) Dw = (1.0-cc)*W_P1;
+        else if (idx >= (bathHeight+zone1) && idx < (bathHeight+zone1+zone2)) Dw = (1.0-cc1)*W_P2;
 
         
-        // TODO figure out instability when using Dweight with Phillies
-        // TODO does using c^3/2 have better results?
-        // calculate diffusion
-        // double Dweight= W_S*cS + cc*W_P1 + cc1*W_P2);
-        //if (Dweight <= 0) Dweight = 0.001;
-        //if (Dweight >= W_S) Dweight = W_S;
-        
-        // add phillies method
-        double c_combined = cc+cc1;
-        double Dphil_c = philliesDiffusion_NIPS(cc, gammaDw, nuDw, W_P1, Mweight, Mvolume);
-        double Dphil_c2 = philliesDiffusion_NIPS(cc1,gammaDw, nuDw, W_P2, Mweight, Mvolume);
+        // ------------------------------
+        // phillies method (scrapped)
+        // here we're getting incorrect results due to the additive nature
+        // scrap phillies method
+        // ------------------------------
+        //float Dphil_c = philliesDiffusion_NIPS(cc, gammaDw, nuDw, W_P1, Mweight, Mvolume);
+        //float Dphil_c2 = philliesDiffusion_NIPS(cc1,gammaDw, nuDw, W_P2, Mweight, Mvolume);
         //if (Dphil_c <= 0.0) Dphil = 0.001;
-        double D_combined = Dphil_c + Dphil_c2;
-        Mob[gid] = D_combined;/*Dphil;*/
+        //float D_combined = Dphil_c + Dphil_c2;
+        Mob[gid] = Dw;
     }
 }
 
-__global__ void update_water_NIPS(double* w,double* df, double* Mob, double* nonUniformLap,double Dw, double dt, int nx, int ny, int nz, double h, bool bX, bool bY, bool bZ)
+__global__ void update_water_NIPS(float* w,float* df, float* Mob, float* nonUniformLap,float Dw, float dt, int nx, int ny, int nz, float h, bool bX, bool bY, bool bZ)
 {
     // here we're re-using the Mob array for Dw_nonUniform
     // get unique thread id
@@ -619,8 +702,8 @@ __global__ void update_water_NIPS(double* w,double* df, double* Mob, double* non
         
         // adding back in nonUniformLaplacian
         // TODO do we need the nonUniformLaplacian Kernel? aparantly so...
-        double nonUniformLapNS = nonUniformLap[gid]; //laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
-        //double nonUniformLapNS = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        float nonUniformLapNS = nonUniformLap[gid]; //laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
+        //float nonUniformLapNS = laplacianNonUniformMob_NIPS(df,Mob,gid,idx,idy,idz,nx,ny,nz,h,bX,bY,bZ);
         w[gid] += nonUniformLapNS*dt;
         //w[gid] += 20*df[gid]*dt;
     }
@@ -645,9 +728,10 @@ __global__ void init_cuRAND_NIPS(unsigned long seed,curandState *state,int nx,in
 
 /************************************************************
   * Add random fluctuations for non-trivial solution (cuRand)
+  * TODO - fix droplet issues
   ***********************************************************/
-__global__ void addNoise_NIPS(double *c,double* c1,int nx, int ny, int nz, double dt, int current_step, 
-                         double water_CB,double phiCutoff,curandState *state,double noiseStr)
+__global__ void addNoise_NIPS(float *c,float* c1,int nx, int ny, int nz, float dt, int current_step, 
+                         float water_CB,float phiCutoff,curandState *state,float noiseStr)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -655,15 +739,24 @@ __global__ void addNoise_NIPS(double *c,double* c1,int nx, int ny, int nz, doubl
     int idz = blockIdx.z*blockDim.z + threadIdx.z;
     if (idx<nx && idy<ny && idz<nz)
     {
-        // TODO add noiseScale variable
+        // TODO - fix droplet issues
         int gid = nx*ny*idz + nx*idy + idx;
-        double noise = curand_uniform_double(&state[gid]);
-        double cc = c[gid];
-        double cc1 = c1[gid];
+        float noise = curand_uniform(&state[gid]);
+        float cc = c[gid];
+        float cc1 = c1[gid];
         // add random fluctuations with euler update
-        if (cc + cc1 >= phiCutoff) noise = 0.5; // no fluctuations for phi >= cutoff
-        else if (cc + cc1 <= 0.0) noise = 0.5;  // no fluctuations for phi <= 0
-        c[gid] += noiseStr*(noise-0.5)*dt;
+        
+        // define noise limit 
+        float noiseLimit = noiseStr*0.5*dt;
+        float scaledNoise = noiseStr*(noise-0.5)*dt;
+        // no fluctuations for phi >= cutoff
+        if (cc + cc1 >= phiCutoff) scaledNoise = 0.0; 
+        // no fluctuations for phi <= 0
+        // TODO - only look at single poly concentration
+        else if (cc /*+ cc1*/ <= noiseLimit) scaledNoise = 0.0;  
+        // if noise makes negative concetration -> add concentration and don't subtract
+        //else if (cc <= 0.0 && scaledNoise < 0.0) scaledNoise = 0;
+        c[gid] += scaledNoise;
     }
 }
 
@@ -674,7 +767,7 @@ __global__ void addNoise_NIPS(double *c,double* c1,int nx, int ny, int nz, doubl
   * the host.
   *******************************************************/
 
-__global__ void populateCopyBuffer_NIPS(double* c,double* cpyBuff, int nx, int ny, int nz)
+__global__ void populateCopyBuffer_NIPS(float* c,float* cpyBuff, int nx, int ny, int nz)
 {
     // get unique thread id
     int idx = blockIdx.x*blockDim.x + threadIdx.x;

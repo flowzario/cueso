@@ -38,6 +38,7 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     by = input_params("PFNipsLayers/by",1);
     bz = input_params("PFNipsLayers/bz",1);
     numSteps = input_params("Time/nstep",1);
+    holdSteps = input_params("PFNipsLayers/holdSteps",0);
     co = input_params("PFNipsLayers/co",0.20);
     co1 = input_params("PFNipsLayers/co1",0.20);
     r1 = input_params("PFNipsLayers/r1",0.5);
@@ -47,6 +48,10 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     kap = input_params("PFNipsLayers/kap",1.0);
     water_CB = input_params("PFNipsLayers/water_CB",1.0);
     bathHeight = input_params("PFNipsLayers/bathHeight",0);
+    zone1 = r1*(nx-bathHeight);
+    zone2 = nx - zone1 - bathHeight;
+    blendZone = input_params("PFNipsLayers/blendZone",0);
+    blendWeight = input_params("PFNipsLayers/blendWeight",1.0);
     NS_in_dope = input_params("PFNipsLayers/NS_in_dope",0.0);
     mobReSize = input_params("PFNipsLayers/mobReSize",1.0);
     chiPS = input_params("PFNipsLayers/chiPS",0.034);
@@ -61,6 +66,11 @@ PFNipsLayers::PFNipsLayers(const GetPot& input_params)
     Tinit = input_params("PFNipsLayers/Tinit",298.0);
     Tcast = input_params("PFNipsLayers/Tcast",298.0);
     noiseStr = input_params("PFNipsLayers/noiseStr",0.1);
+    initNoise = input_params("PFNipsLayers/initNoise",0.1);
+        // ----------------------------------------------------------------
+        // TODO 
+        // ADD noiseStr to all areas where used (initializing domain)
+        // -----------------------------------------------------------------
     D0 = input_params("PFNipsLayers/D0",1.0);
     D01 = input_params("PFNipsLayers/D01",1.0);
     Dw = input_params("PFNipsLayers/Dw",10.0);
@@ -140,39 +150,88 @@ void PFNipsLayers::initSystem()
     // Initialize concentration fields:
     // ----------------------------------------
     srand(time(NULL));      // setting the seed  
-    double r = 0.0;
+    float r = 0.0;
     int xHolder = 0;
-    int zone1 = r1*(nx-bathHeight);
-    int zone2 = nx - zone1 - bathHeight;
+    int zoneLoc = 0;
+    float blendLoc = 0.0;
+    float blendScale = 0.0;
+    //int zone1 = r1*(nx-bathHeight);
+    //int zone2 = nx - zone1 - bathHeight;
+    if (initNoise > noiseStr*0.5*dt) initNoise = noiseStr*0.5*dt;
     for(size_t i=0;i<nxyz;i++) {
         while (xHolder < bathHeight){
-            //r = (double)rand()/RAND_MAX;
+            //r = (float)rand()/RAND_MAX;
             water.push_back(water_CB);
             c.push_back(0.0);
             c1.push_back(0.0);
-            //Mob.push_back(1.0);
+            Mob.push_back(1.0);
             xHolder++;
         }
         xHolder = 0;
         while (xHolder < zone1) 
         {  
-            r = (double)rand()/RAND_MAX;
-            c.push_back(co + 0.1*(r-0.5));
-            c1.push_back(0.0);
-            water.push_back(NS_in_dope);
-            //Mob.push_back(1.0);
-            xHolder++;
+            if (xHolder > (zone1 - blendZone/2)){
+                // blend scale is a function that is approx 1 at x=0
+                // and approx 0 at x=2
+                blendLoc = 2.0*zoneLoc/(blendZone);
+                blendScale =  1.0 - (tanh(blendWeight*(blendLoc-1)/2)+1)/2;
+                r = (float)rand()/RAND_MAX;
+                c.push_back((blendScale)*(co + 0.1*(r-0.5)));
+                // add small concentration to opposite layer
+                // trying to take it back out to 0.0
+                // minimum noise threshold
+                // check for negative issues        
+                c1.push_back((1.0 - blendScale)*(co + 0.1*(r-0.5)));
+                water.push_back(NS_in_dope);
+                Mob.push_back(1.0);
+                xHolder++;
+                zoneLoc++;
+            }
+            else 
+            {
+                r = (float)rand()/RAND_MAX;
+                c.push_back(co + 0.1*(r-0.5));
+                // add small concentration to opposite layer
+                // trying to take it back out to 0.0
+                // minimum noise threshold
+                c1.push_back(initNoise);
+                water.push_back(NS_in_dope);
+                Mob.push_back(1.0);
+                xHolder++;
+            }
         }
         xHolder = 0;
         while (xHolder < zone2)
         {
-            r = (double)rand()/RAND_MAX;
-            c.push_back(0.0);
-            c1.push_back(co1 + 0.1*(r-0.5));
-            water.push_back(NS_in_dope);
-            //Mob.push_back(1.0);
-            xHolder++;
+            if (xHolder < blendZone/2) {
+                blendLoc = 2.0*zoneLoc/(blendZone);
+                blendScale =  1.0 - (tanh(blendWeight*(blendLoc-1)/2)+1)/2;
+                r = (float)rand()/RAND_MAX;
+                // should we check for negative numbers
+                c.push_back((blendScale)*(co + 0.1*(r-0.5)));
+                // add small concentration to opposite layer
+                // trying to take it back out to 0.0
+                // minimum noise threshold
+                c1.push_back((1.0 - blendScale)*(co + 0.1*(r-0.5)));
+                water.push_back(NS_in_dope);
+                Mob.push_back(1.0);
+                xHolder++;
+                zoneLoc++;
+            }
+            else {
+                r = (float)rand()/RAND_MAX;
+                // add small concentration to opposite layer
+                // trying to take it back out to 0.0
+                // minimum noise threshold
+                c.push_back(initNoise);
+                c1.push_back(co1 + 0.1*(r-0.5));
+                water.push_back(NS_in_dope);
+                Mob.push_back(1.0);
+                xHolder++;    
+            }
+            
         }
+        zoneLoc = 0;
         xHolder = 0;
     }
     // ----------------------------------------
@@ -181,7 +240,7 @@ void PFNipsLayers::initSystem()
     // ----------------------------------------
 
     // allocate memory on device
-    size = nxyz*sizeof(double);
+    size = nxyz*sizeof(float);
     // allocate polymer species (top layer)
     cudaMalloc((void**) &c_d,size);
     cudaCheckErrors("cudaMalloc fail");
@@ -260,7 +319,7 @@ void PFNipsLayers::computeInterval(int interval)
         // compute CH for c and c1
         // ------------------------
         
-        // calculate the laplacian of c_d and store in df_d
+        // calculate the laplacian of c_d, c1_d, and store in df_d, df1_d
         calculateLapBoundaries_NIPS<<<blocks,blockSize>>>(c_d,c1_d,df_d,df1_d,nx,ny,nz,dx,bx,by,bz); 
         cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         cudaDeviceSynchronize();
@@ -269,7 +328,7 @@ void PFNipsLayers::computeInterval(int interval)
         //cudaCheckAsyncErrors("calculateLap polymer kernel fail");
         //cudaDeviceSynchronize();
         
-        // calculate the chemical potential for c and store in df_d
+        // calculate the chemical potential for c_d, c1_d, and store in df_d, df1_d
         calculateChemPotFH_NIPS<<<blocks,blockSize>>>(c_d,c1_d,w_d,df_d,df1_d,chiPP,kap,A,chiPS,chiPN,N,nx,ny,nz,current_step,dt);
         cudaCheckAsyncErrors("calculateChemPotFH kernel fail");
         cudaDeviceSynchronize();
@@ -307,37 +366,37 @@ void PFNipsLayers::computeInterval(int interval)
         // compute water diffusion 
         // TODO fix non-uniform
         // ---------------------------
+        if (current_step >= holdSteps)
+        {
+            // 1 calculate mu for Nonsolvent diffusion
+            // removed water diffusivity scaling and added to 
+            // calculate_water_diffusion
+            // removing NS diffusion for debugging TODO
+            calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,/*Mob_d,*/Dw,water_CB,/*gammaDw,nuDw,Mweight,Mvolume,*/nx,ny,nz);
+            cudaCheckAsyncErrors('calculate muNS kernel fail');
+            cudaDeviceSynchronize();
         
-        // 1 calculate mu for Nonsolvent diffusion
-        // removed water diffusivity scaling and added to 
-        // calculate_water_diffusion
-        // removing NS diffusion for debugging TODO
-        calculate_muNS_NIPS<<<blocks,blockSize>>>(w_d,c_d,c1_d,muNS_d,/*Mob_d,*/Dw,water_CB,/*gammaDw,nuDw,Mweight,Mvolume,*/nx,ny,nz);
-        cudaCheckAsyncErrors('calculate muNS kernel fail');
-        cudaDeviceSynchronize();
+            // 2 calculate laplacian for muNS - constant diffusion
+            /*calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
+            cudaCheckAsyncErrors('calculateLap water kernel fail');    
+            cudaDeviceSynchronize();*/
         
-        // 2 calculate laplacian for muNS
-        calculateLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(df_d,muNS_d,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors('calculateLap water kernel fail');    
-        cudaDeviceSynchronize();
+            // calcualte diffusion of water based on which layer you're in
+            // added zone1, zone2, and bathHeight
+            calculate_water_diffusion<<<blocks,blockSize>>>(zone1,zone2,bathHeight,c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
+            cudaCheckAsyncErrors('calculate water diffusivity fail');
+            cudaDeviceSynchronize();
         
-
-        // - calcualte diffusion of water based on local polymer concentration
-        calculate_water_diffusion<<<blocks,blockSize>>>(c_d,c1_d,Mob_d,Dw,W_S,W_P1,W_P2,gammaDw,nuDw,Mweight,Mvolume,nx,ny,nz);
-        cudaCheckAsyncErrors('calculate water diffusivity fail');
-        cudaDeviceSynchronize();
+            // 3 calculate non-uniform laplacian for diffusion and concentration 
+            calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
+            cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
+            cudaDeviceSynchronize();
         
-        // 3 calculate non-uniform laplacian for diffusion and concentration 
-        calculateNonUniformLapBoundaries_muNS_NIPS<<<blocks,blockSize>>>(muNS_d,Mob_d,nonUniformLap_d,nx,ny,nz,dx,bx,by,bz);
-
-        cudaCheckAsyncErrors('calculateNonUniformLap muNS kernel fail');
-        cudaDeviceSynchronize();
-        
-        // 4 euler update water diffusing
-        update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,nonUniformLap_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
-        cudaCheckAsyncErrors("updateWater kernel fail");
-        cudaDeviceSynchronize();
-        
+            // 4 euler update water diffusing
+            update_water_NIPS<<<blocks,blockSize>>>(w_d,df_d,Mob_d,nonUniformLap_d,Dw,dt,nx,ny,nz,dx,bx,by,bz);
+            cudaCheckAsyncErrors("updateWater kernel fail");
+            cudaDeviceSynchronize();
+        }
 
         
         // ----------------------------
@@ -375,7 +434,7 @@ void PFNipsLayers::computeInterval(int interval)
     cudaMemcpyAsync(&water[0],w_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
     cudaDeviceSynchronize();
-    // mobility concentration
+    // water diffusivity
     /*populateCopyBuffer_NIPS<<<blocks,blockSize>>>(Mob_d,cpyBuff_d,nx,ny,nz);
     cudaMemcpyAsync(&Mob[0],Mob_d,size,cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpyAsync D2H fail");
@@ -403,6 +462,8 @@ void PFNipsLayers::writeOutput(int step)
     stringstream filenamecombine2;
     stringstream filenamecombine3;
     stringstream filenamecombine4;
+    float point = 0.0;
+    float point2 = 0.0;
     
     filenamecombine << "vtkoutput/c_t_" << step << ".vtk";
     string filename = filenamecombine.str();
@@ -437,8 +498,8 @@ void PFNipsLayers::writeOutput(int step)
             for(size_t i=0;i<nx;i++)
             {
                 int id = nx*ny*k + nx*j + i;
-                double point = c[id];
-                if (point < 1e-10) point = 0.0; // making really small numbers == 0 
+                point = c[id];
+                if (abs(point) < 1e-30) point = 0.0; // making really small numbers == 0 
                 outfile << point << endl;
             }
 
@@ -481,9 +542,9 @@ void PFNipsLayers::writeOutput(int step)
             for(size_t i=0;i<nx;i++)
             {
                 int id = nx*ny*k + nx*j + i;
-                double point = c1[id];
-                if (point < 1e-10) point = 0.0; // making really small numbers == 0 
-                outfile3 << point << endl;
+                point = c1[id]; // or declare float here
+                if (abs(point) < 1e-30) point = 0.0; // making really small numbers == 0 
+                outfile3 << point << endl; // TODO convert float to float
             }
 
     // -----------------------------------
@@ -529,9 +590,9 @@ void PFNipsLayers::writeOutput(int step)
             for(size_t i=0;i<nx;i++)
             {
                 int id = nx*ny*k + nx*j + i;
-                double point = water[id];
+                point = water[id];
                 // for paraview
-                if (point < 1e-30) point = 0.0; // making really small numbers == 0 
+                if (abs(point) < 1e-30) point = 0.0; // making really small numbers == 0 
                 outfile2 << point << endl;
             }
 
@@ -541,7 +602,7 @@ void PFNipsLayers::writeOutput(int step)
 
     outfile2.close();
     
-    /*filenamecombine4 << "vtkoutput/mob_" << step << ".vtk";
+    filenamecombine4 << "vtkoutput/c_comb_" << step << ".vtk";
     string filename4 = filenamecombine4.str();
     outfile4.open(filename4.c_str(), std::ios::out);
 
@@ -559,7 +620,7 @@ void PFNipsLayers::writeOutput(int step)
     outfile4 << "SPACING" << d << 1.0 << d << 1.0 << d << 1.0 << endl;
     outfile4 << " " << endl;
     outfile4 << "POINT_DATA " << nxyz << endl;
-    outfile4 << "SCALARS mob float" << endl;
+    outfile4 << "SCALARS c float" << endl;
     outfile4 << "LOOKUP_TABLE default" << endl;
 
     // -----------------------------------
@@ -573,9 +634,11 @@ void PFNipsLayers::writeOutput(int step)
             for(size_t i=0;i<nx;i++)
             {
                 int id = nx*ny*k + nx*j + i;
-                double point = Mob[id];
+                point = c[id];
+                point2 = c1[id];
+                point += point2;
                 // for paraview
-                if (point < 1e-30) point = 0.0; // making really small numbers == 0 
+                if (abs(point) < 1e-30) point = 0.0; // making really small numbers == 0 
                 outfile4 << point << endl;
             }
 
@@ -583,7 +646,7 @@ void PFNipsLayers::writeOutput(int step)
     //	Close the file:
     // -----------------------------------
 
-    outfile4.close();*/
+    outfile4.close();
     
     
 }
@@ -613,21 +676,21 @@ void PFNipsLayers::runUnitTests()
 bool PFNipsLayers::lapKernUnitTest()
 {
     // 3X3X3 scalar field with ones except the central node
-    double sf[27] = {1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1};
-    double solution[27] = {0,0,0,0,-1,0,0,0,0,0,-1,0,-1,6,-1,0,-1,0,0,0,0,0,-1,0,0,0,0};
+    float sf[27] = {1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    float solution[27] = {0,0,0,0,-1,0,0,0,0,0,-1,0,-1,6,-1,0,-1,0,0,0,0,0,-1,0,0,0,0};
     // allocate space on device
-    double* sf_d;
-    cudaMalloc((void**) &sf_d,27*sizeof(double));
+    float* sf_d;
+    cudaMalloc((void**) &sf_d,27*sizeof(float));
     cudaCheckErrors("cudaMalloc fail");
     // copy sf to device
-    cudaMemcpy(sf_d,sf,27*sizeof(double),cudaMemcpyHostToDevice);
+    cudaMemcpy(sf_d,sf,27*sizeof(float),cudaMemcpyHostToDevice);
     cudaCheckErrors("cudaMemcpy H2D fail");
     // launch kernel
     dim3 grid(1,1,3);
     dim3 TpB(32,32,1);
     testLap_NIPS<<<grid,TpB>>>(sf_d,3,3,3,1.0,bx,by,bz);
     // copy data back to host
-    cudaMemcpy(sf,sf_d,27*sizeof(double),cudaMemcpyDeviceToHost);
+    cudaMemcpy(sf,sf_d,27*sizeof(float),cudaMemcpyDeviceToHost);
     cudaCheckErrors("cudaMemcpy D2H fail");
     // print out results
     for(size_t i=0;i<27;i++)

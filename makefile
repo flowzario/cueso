@@ -1,6 +1,8 @@
 #################
 # Paths and Flags
 #################
+
+
 SHELL = /bin/bash
 CC = g++ 
 NVCC = nvcc -I $(CUDA_HOME)/include
@@ -8,7 +10,7 @@ TARGET_PATH = ./bin
 TARGET_NAME_OPT = cueso
 TARGET_NAME_DBG = dbg$(TARGET_NAME_OPT)
 OBJ_PATH = ./obj
-CFLAGS = -std=c++11
+CFLAGS = -std=c++11 
 #CUDAFLAGS = --gpu-architecture=compute_35 --gpu-code=sm_35
 CUDAFLAGS = 
 DBG_CFLAGS = $(CFLAGS) -g -DDEBUG
